@@ -1,0 +1,68 @@
+import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import { connectDB } from "./db";
+import { User } from "@/models/User";
+import { loginSchema } from "./validations";
+import { rateLimit } from "./rate-limit";
+import { authConfig } from "./auth.config";
+
+const MAX_ATTEMPTS = 5;
+const LOCK_MINUTES = 15;
+
+export const { handlers, signIn, signOut, auth } = NextAuth({
+  ...authConfig,
+  providers: [
+    Credentials({
+      name: "credentials",
+      credentials: {
+        identifier: { label: "Email or Mobile", type: "text" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        const parsed = loginSchema.safeParse(credentials);
+        if (!parsed.success) return null;
+        const { identifier, password } = parsed.data;
+
+        if (!rateLimit(`login:${identifier.toLowerCase()}`, 10, 60000)) return null;
+
+        await connectDB();
+
+        const isEmail = identifier.includes("@");
+        const query = isEmail
+          ? { email: identifier.toLowerCase() }
+          : { mobile: identifier };
+        const user = await User.findOne(query);
+        if (!user) return null;
+
+        if (user.lockedUntil && user.lockedUntil > new Date()) return null;
+        if (!user.isActive) return null;
+
+        const ok = await bcrypt.compare(password, user.passwordHash);
+        if (!ok) {
+          user.loginAttempts = (user.loginAttempts ?? 0) + 1;
+          if (user.loginAttempts >= MAX_ATTEMPTS) {
+            user.lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60_000);
+            user.loginAttempts = 0;
+          }
+          await user.save();
+          return null;
+        }
+
+        user.loginAttempts = 0;
+        user.lockedUntil = null;
+        user.lastLoginAt = new Date();
+        await user.save();
+
+        return {
+          id: user._id.toString(),
+          name: user.name,
+          email: user.email ?? undefined,
+          role: user.role,
+          image: user.image?.url ?? undefined,
+          centerId: user.center ? user.center.toString() : undefined,
+        } as unknown as import("next-auth").User;
+      },
+    }),
+  ],
+});
