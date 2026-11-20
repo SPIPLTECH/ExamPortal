@@ -28,17 +28,6 @@ export default async function StudentDashboard() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">
-          Welcome, {user.name.split(" ")[0]}
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          {profile
-            ? `Class ${profile.class}${profile.stream ? ` · ${profile.stream}` : ""} · ${profile.schoolName}`
-            : "Student dashboard"}
-        </p>
-      </div>
-
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Enrolled Tests" value={enrolled} icon={FileCheck2} tone="blue" />
         <StatCard label="Completed" value={completed} icon={CheckCircle2} tone="green" />

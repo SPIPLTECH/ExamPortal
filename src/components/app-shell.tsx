@@ -86,10 +86,12 @@ function isActivePath(pathname: string, href: string, roots: string[]) {
 export function AppShell({
   role,
   user,
+  bannerSubtitle,
   children,
 }: {
   role: string;
   user: { name?: string | null; email?: string | null; image?: string | null };
+  bannerSubtitle?: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -225,6 +227,30 @@ export function AppShell({
           </div>
         </div>
       </header>
+
+      {/* Student profile banner (only on student home) */}
+      {role === "STUDENT" && pathname === "/student" && (
+        <div
+          className="w-full bg-[#0b1f3f] bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: "url('/student_bg.png')" }}
+        >
+          <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 pb-6 pt-14 sm:gap-5 sm:pb-8 sm:pt-20 lg:px-6">
+            <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white/90 text-2xl font-semibold text-[#0b1f3f] shadow-lg sm:h-24 sm:w-24 sm:text-3xl">
+              {user.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.image} alt="" className="h-full w-full object-cover" />
+              ) : (
+                initials
+              )}
+            </span>
+            <div className="min-w-0 text-white">
+              <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{user.name}</h1>
+              {user.email && <p className="truncate text-xs text-white/80 sm:text-sm">{user.email}</p>}
+              {bannerSubtitle && <p className="mt-0.5 truncate text-xs text-white/80 sm:text-sm">{bannerSubtitle}</p>}
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="mx-auto max-w-7xl px-4 py-6 lg:px-6 lg:py-8">{children}</main>
     </div>
