@@ -24,6 +24,10 @@ export interface IProctoringSession {
     multipleFaces: number;
     voiceFlags: number;
   };
+  /** Running AI rule state (consecutive-frame streaks, cooldowns). */
+  aiState?: Record<string, number> | null;
+  /** 128-d face feature of the pre-exam photo. Never sent to clients. */
+  identityEmbedding?: number[];
   startedAt?: Date | null;
   endedAt?: Date | null;
   terminationReason?: string | null;
@@ -68,6 +72,8 @@ const ProctoringSessionSchema = new Schema<IProctoringSession>(
       multipleFaces: { type: Number, default: 0 },
       voiceFlags: { type: Number, default: 0 },
     },
+    aiState: { type: Schema.Types.Mixed, default: null },
+    identityEmbedding: { type: [Number], default: undefined, select: false },
     startedAt: { type: Date, default: null },
     endedAt: { type: Date, default: null },
     terminationReason: { type: String, default: null },

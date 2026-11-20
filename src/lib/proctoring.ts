@@ -16,6 +16,8 @@ const VIOLATION_TYPES = new Set([
   "FACE_MISSING",
   "MULTIPLE_FACES",
   "PHONE_DETECTED",
+  "HEAD_POSE_AWAY",
+  "IDENTITY_MISMATCH",
 ]);
 
 /** Which session counter (if any) a raw event type bumps. */
@@ -38,6 +40,8 @@ const HUMAN: Record<string, string> = {
   FACE_MISSING: "Your face was not visible to the camera. Stay in view of the camera.",
   MULTIPLE_FACES: "Another person was detected in your camera view. Only you may be present during the exam.",
   PHONE_DETECTED: "A mobile phone or other prohibited object was detected. Put it away now.",
+  HEAD_POSE_AWAY: "You were looking away from the screen. Face the camera while taking the exam.",
+  IDENTITY_MISMATCH: "The person in front of the camera does not match your verified photo.",
 };
 
 export type PolicyResult = {

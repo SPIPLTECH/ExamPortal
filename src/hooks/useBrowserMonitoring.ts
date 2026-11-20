@@ -222,7 +222,20 @@ export function useBrowserMonitoring({
     [reportEvent]
   );
 
+  // Apply a policy decision that came back from another channel (AI frame upload).
+  const applyPolicyResult = useCallback(
+    (p: { currentWarnings: number; maxWarnings: number; isFlagged: boolean; warningIssued: boolean; message: string | null; terminated: boolean }) => {
+      setWarnings(p.currentWarnings);
+      setMaxWarnings(p.maxWarnings);
+      setIsFlagged(p.isFlagged);
+      if (p.warningIssued && p.message) setActiveWarningMessage(p.message);
+      if (p.terminated && onEnded) onEnded();
+    },
+    [onEnded]
+  );
+
   return {
+    applyPolicyResult,
     reportExternal,
     warnings,
     maxWarnings,

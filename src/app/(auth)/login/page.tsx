@@ -9,6 +9,14 @@ import { GraduationCap, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export default function LoginPage() {
   return (
@@ -44,36 +52,20 @@ function LoginInner() {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2">
-      {/* Brand panel */}
-      <div className="hidden lg:flex flex-col justify-between bg-primary text-primary-foreground p-12">
-        <div className="flex items-center gap-2 font-semibold text-lg">
-          <GraduationCap className="h-6 w-6" /> Exam Portal
-        </div>
-        <div>
-          <h1 className="text-4xl font-bold leading-tight">
-            Secure, proctored online examinations
-          </h1>
-          <p className="mt-4 text-primary-foreground/80 max-w-md">
-            A complete examination management system for ALC centers, administrators
-            and students — with class-aware question sets and live proctoring.
-          </p>
-        </div>
-        <p className="text-sm text-primary-foreground/60">
-          © {new Date().getFullYear()} Soft Polynomials
-        </p>
-      </div>
-
-      {/* Form panel */}
-      <div className="flex items-center justify-center p-6">
-        <div className="w-full max-w-sm">
-          <div className="mb-8 lg:hidden flex items-center gap-2 font-semibold text-lg">
-            <GraduationCap className="h-6 w-6 text-primary" /> Exam Portal
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-primary/5 p-4">
+      <Card className="w-full max-w-md shadow-xl">
+        <CardHeader className="text-center space-y-3">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <GraduationCap className="h-6 w-6" />
           </div>
-          <h2 className="text-2xl font-bold">Welcome back</h2>
-          <p className="text-muted-foreground mt-1 mb-6 text-sm">
-            Sign in with your email or mobile number.
-          </p>
+          <div>
+            <CardTitle className="text-2xl">Welcome back</CardTitle>
+            <CardDescription className="mt-1">
+              Sign in to Exam Portal with your email or mobile number.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="identifier">Email or Mobile</Label>
@@ -102,14 +94,14 @@ function LoginInner() {
               Sign in
             </Button>
           </form>
-          <p className="text-sm text-muted-foreground mt-6 text-center">
-            New student?{" "}
-            <Link href="/register" className="text-primary font-medium hover:underline">
-              Create an account
-            </Link>
-          </p>
-        </div>
-      </div>
+        </CardContent>
+        <CardFooter className="justify-center text-sm text-muted-foreground">
+          New student?&nbsp;
+          <Link href="/register" className="text-primary font-medium hover:underline">
+            Create an account
+          </Link>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

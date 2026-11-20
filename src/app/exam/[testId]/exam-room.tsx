@@ -12,14 +12,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { configureProctoring, sendConsent } from "@/lib/proctoring/service";
+import { configureProctoring, sendConsent, type PolicyResult } from "@/lib/proctoring/service";
 import { useWebcamCapture } from "@/hooks/useWebcamCapture";
 import { useBrowserMonitoring } from "@/hooks/useBrowserMonitoring";
 import { useObjectDetection } from "@/hooks/useObjectDetection";
 import { WebcamPreview } from "@/components/proctoring/webcam-preview";
 import { WarningBanner } from "@/components/proctoring/warning-banner";
 import { PreExamCheck } from "@/components/proctoring/pre-exam-check";
-import { ShieldCheck, UserCheck, Smartphone, UserX, Users } from "lucide-react";
+import { ShieldCheck, Smartphone, UserX, Users } from "lucide-react";
 
 type ClientQuestion = {
   question: string;
@@ -38,6 +38,7 @@ type AttemptState = {
   serverNow: string;
   durationMinutes: number;
   proctoringMode: string;
+  student?: { name: string; imageUrl: string | null };
   questions: ClientQuestion[];
   responses: { question: string; selectedOption: string | null; status: RespStatus }[];
 };
@@ -65,7 +66,7 @@ export function ExamRoom({ testId }: { testId: string }) {
   // ── Proctoring ─────────────────────────────────────────
   const proctoringEnabled = !!state && state.proctoringMode !== "DISABLED";
   const [proctorReady, setProctorReady] = useState(false);
-  const [identityUrl, setIdentityUrl] = useState<string | null>(null);
+  const [aiEnabled, setAiEnabled] = useState(false);
   const endedRef = useRef(false);
 
   useEffect(() => {
@@ -79,21 +80,31 @@ export function ExamRoom({ testId }: { testId: string }) {
     router.replace("/student/history");
   }, [router]);
 
+  // Server policy decisions from AI frames are routed into the monitor (set below).
+  const policyHandlerRef = useRef<(p: PolicyResult) => void>(() => {});
   const webcam = useWebcamCapture({
     autoStartPeriodic: proctoringEnabled && proctorReady,
     periodicIntervalSeconds: 15,
     onAttemptEnded: onProctorEnded,
+    aiEnabled,
+    aiIntervalSeconds: 5,
+    onPolicyResult: (p) => policyHandlerRef.current(p),
   });
 
   const monitor = useBrowserMonitoring({
     isActive: proctoringEnabled && proctorReady,
     onEnded: onProctorEnded,
   });
+  const applyPolicyResult = monitor.applyPolicyResult;
+  useEffect(() => {
+    policyHandlerRef.current = applyPolicyResult;
+  }, [applyPolicyResult]);
 
-  // Live camera object detection (phone / multiple people / no face).
+  // In-browser detection is the fallback; when the AI service is on it does the job server-side
+  // (running both would double-count the same incident).
   const detection = useObjectDetection({
     videoRef: webcam.videoRef,
-    active: proctoringEnabled && proctorReady,
+    active: proctoringEnabled && proctorReady && !aiEnabled,
     onViolation: (eventType, meta) => monitor.reportExternal(eventType, "HIGH", meta),
   });
 
@@ -112,7 +123,9 @@ export function ExamRoom({ testId }: { testId: string }) {
   useEffect(() => {
     if (proctoringEnabled && !proctorReady && !consentSentRef.current) {
       consentSentRef.current = true;
-      sendConsent().catch(() => {
+      sendConsent()
+        .then((r) => setAiEnabled(!!r.aiEnabled))
+        .catch(() => {
         consentSentRef.current = false;
       });
     }
@@ -271,7 +284,6 @@ export function ExamRoom({ testId }: { testId: string }) {
         onRequestCamera={webcam.requestCamera}
         onCaptureIdentity={async () => {
           const r = await webcam.captureAndUpload("PRE_EXAM_IDENTITY");
-          if (r?.url) setIdentityUrl(r.url);
           return !!r;
         }}
         onStart={async () => {
@@ -289,7 +301,8 @@ export function ExamRoom({ testId }: { testId: string }) {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Top bar */}
-      <header className="h-14 bg-white border-b flex items-center px-4 gap-3 shrink-0">
+      <header className="h-16 bg-white border-b flex items-center px-4 gap-3 shrink-0">
+        <ProfileBadge name={state.student?.name ?? ""} imageUrl={state.student?.imageUrl ?? null} />
         <span className="font-semibold truncate">{state.testName}</span>
         <div className="ml-auto flex items-center gap-4">
           <div
@@ -308,7 +321,7 @@ export function ExamRoom({ testId }: { testId: string }) {
 
       <div className="flex-1 flex flex-col lg:flex-row">
         {/* Question area */}
-        <main className="flex-1 p-4 lg:p-8">
+        <main className="flex-1 p-4 lg:p-8 pb-48">
           <div className="max-w-2xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-lg">Question {idx + 1}</h2>
@@ -363,7 +376,7 @@ export function ExamRoom({ testId }: { testId: string }) {
         </main>
 
         {/* Palette */}
-        <aside className="w-full lg:w-72 bg-white border-t lg:border-t-0 lg:border-l p-4 shrink-0">
+        <aside className="w-full lg:w-72 bg-white border-t lg:border-t-0 lg:border-l p-4 pb-48 lg:pb-4 shrink-0">
           <p className="font-medium mb-3">Question Palette</p>
           <div className="grid grid-cols-6 lg:grid-cols-5 gap-2 mb-4">
             {state.questions.map((qq, i) => (
@@ -425,19 +438,6 @@ export function ExamRoom({ testId }: { testId: string }) {
             />
           )}
 
-          {/* Captured identity photo — top-left. */}
-          {identityUrl && (
-            <div className="fixed top-16 left-4 z-40">
-              <div className="rounded-xl border border-slate-700 bg-slate-900 p-1 shadow-md">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={identityUrl} alt="Your verified identity" className="w-28 h-20 object-cover rounded-lg" />
-                <div className="flex items-center gap-1 justify-center py-0.5 text-[10px] text-emerald-400">
-                  <UserCheck className="h-3 w-3" /> Verified identity
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Live camera + detection status — bottom-right. */}
           <div className="fixed bottom-4 right-4 z-40 space-y-1">
             <WebcamPreview videoRef={webcam.videoRef} cameraStatus={webcam.cameraStatus} compact showStatusBanner={false} />
@@ -445,6 +445,33 @@ export function ExamRoom({ testId }: { testId: string }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function ProfileBadge({ name, imageUrl }: { name: string; imageUrl: string | null }) {
+  const initials =
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]!.toUpperCase())
+      .join("") || "S";
+  return (
+    <div className="flex items-center gap-2.5 shrink-0 pr-3 border-r">
+      {imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageUrl}
+          alt={name || "Student"}
+          className="h-10 w-10 rounded-full object-cover border-2 border-primary/30"
+        />
+      ) : (
+        <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold">
+          {initials}
+        </div>
+      )}
+      {name && <span className="hidden sm:block text-sm font-medium max-w-[10rem] truncate">{name}</span>}
     </div>
   );
 }

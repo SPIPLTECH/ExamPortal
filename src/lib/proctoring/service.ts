@@ -17,7 +17,7 @@ export type HeartbeatResult = {
   warningCount: number;
   latestWarningMessage: string | null;
 };
-export type SnapshotUploadResult = { status: string; category?: string; url?: string };
+export type SnapshotUploadResult = { status: string; category?: string; url?: string; policyResult?: PolicyResult };
 
 let TEST_ID = "";
 export function configureProctoring(testId: string) {
@@ -32,7 +32,7 @@ class ProctoringError extends Error {
   statusCode?: number;
 }
 
-export async function sendConsent(): Promise<{ sessionId: string; warnings: number; maxWarnings: number }> {
+export async function sendConsent(): Promise<{ sessionId: string; warnings: number; maxWarnings: number; aiEnabled?: boolean }> {
   const res = await fetch(`${base()}/consent`, { method: "POST" });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || "Consent failed");
@@ -73,7 +73,7 @@ export async function sendProctoringHeartbeat(): Promise<HeartbeatResult> {
 }
 
 export async function uploadProctoringSnapshot(
-  type: "PRE_EXAM_IDENTITY" | "PERIODIC_SNAPSHOT" | "INCIDENT_SNAPSHOT",
+  type: "PRE_EXAM_IDENTITY" | "PERIODIC_SNAPSHOT" | "INCIDENT_SNAPSHOT" | "AI_FRAME",
   blob: Blob,
   _simulationMode?: "NORMAL" | "NO_FACE" | "MULTIPLE_FACES",
   capturedAt?: string

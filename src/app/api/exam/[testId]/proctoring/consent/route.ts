@@ -6,6 +6,7 @@ import { ProctoringEvent } from "@/models/ProctoringEvent";
 import { requireStudentContext } from "@/lib/student";
 import { ok, fail, handleRoute } from "@/lib/api";
 import { audit, clientIp } from "@/lib/audit";
+import { aiEnabled } from "@/lib/proctoring/ai";
 
 /** Record proctoring consent and open (or resume) the monitoring session. */
 export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
@@ -64,5 +65,6 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     warnings: session.warnings,
     maxWarnings: session.maxWarnings,
     status: session.status,
+    aiEnabled: aiEnabled(),
   });
 });

@@ -6,6 +6,7 @@ import { requireStudentContext, examLive } from "@/lib/student";
 import { freezeQuestionSet, projectAttempt, finalizeAttempt, isExpired } from "@/lib/exam-engine";
 import { ok, fail, handleRoute } from "@/lib/api";
 import { audit, clientIp } from "@/lib/audit";
+import { User } from "@/models/User";
 
 /** Start a new attempt or resume the existing one. Idempotent: a refresh never
  *  regenerates the question set. */
@@ -15,6 +16,11 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   const { testId } = await (ctxArg as { params: Promise<{ testId: string }> }).params;
 
   await connectDB();
+  const me = await User.findById(ctx.user.id).select("name image").lean();
+  const withStudent = <T extends object>(o: T) => ({
+    ...o,
+    student: { name: me?.name ?? "", imageUrl: me?.image?.url ?? null },
+  });
   const test = await Test.findById(testId).lean<ITest>();
   if (!test) return fail("Test not found", 404);
 
@@ -33,7 +39,7 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
         await finalizeAttempt(existing, "TIMED_OUT");
         return fail("Time is up — your exam was submitted automatically.", 409);
       }
-      return ok(await projectAttempt(existing, test.name)); // resume same frozen set
+      return ok(withStudent(await projectAttempt(existing, test.name))); // resume same frozen set
     }
     // Already submitted/timed-out/terminated: a student may attempt an exam only once.
     return fail("You have already attempted this exam. Retakes are not allowed.", 409);
@@ -83,5 +89,5 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     ip: clientIp(req),
   });
 
-  return ok(await projectAttempt(attempt, test.name), 201);
+  return ok(withStudent(await projectAttempt(attempt, test.name)), 201);
 });

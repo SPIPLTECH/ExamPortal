@@ -9,8 +9,7 @@ export const authConfig: NextAuthConfig = {
   providers: [],
   pages: { signIn: "/login" },
   session: { strategy: "jwt" },
-  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
-  trustHost: true,
+  secret: process.env.AUTH_SECRET,
   callbacks: {
     async jwt({ token, user }) {
       if (user) {

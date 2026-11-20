@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { uploadProctoringSnapshot, type SnapshotUploadResult } from "@/lib/proctoring/service";
+import { uploadProctoringSnapshot, type SnapshotUploadResult, type PolicyResult } from "@/lib/proctoring/service";
 
 export type CameraStatus = "IDLE" | "REQUESTING" | "READY" | "DENIED" | "UNSUPPORTED" | "ERROR";
 
@@ -9,6 +9,10 @@ interface Props {
   periodicIntervalSeconds?: number;
   autoStartPeriodic?: boolean;
   onAttemptEnded?: () => void;
+  /** When true, a frame is sent every aiIntervalSeconds to the AI service for analysis. */
+  aiEnabled?: boolean;
+  aiIntervalSeconds?: number;
+  onPolicyResult?: (p: PolicyResult) => void;
 }
 
 /** Webcam capture + periodic evidence upload, ported from ProctorGuard. */
@@ -16,6 +20,9 @@ export function useWebcamCapture({
   periodicIntervalSeconds = 15,
   autoStartPeriodic = false,
   onAttemptEnded,
+  aiEnabled = false,
+  aiIntervalSeconds = 5,
+  onPolicyResult,
 }: Props = {}) {
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("IDLE");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -26,6 +33,11 @@ export function useWebcamCapture({
   const periodicTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isUploadingRef = useRef(false);
   const isEndedRef = useRef(false);
+  const aiBusyRef = useRef(false);
+  const onPolicyRef = useRef(onPolicyResult);
+  useEffect(() => {
+    onPolicyRef.current = onPolicyResult;
+  }, [onPolicyResult]);
 
   const requestCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -142,6 +154,30 @@ export function useWebcamCapture({
       if (periodicTimerRef.current) clearTimeout(periodicTimerRef.current);
     };
   }, [autoStartPeriodic, cameraStatus, periodicIntervalSeconds, captureAndUpload]);
+
+  // AI analysis loop: separate from evidence uploads so a slow upload never delays it.
+  useEffect(() => {
+    if (!aiEnabled || !autoStartPeriodic || cameraStatus !== "READY") return;
+    const ms = Math.max(3, aiIntervalSeconds) * 1000;
+    const timer = setInterval(async () => {
+      if (isEndedRef.current || aiBusyRef.current || document.hidden) return;
+      aiBusyRef.current = true;
+      try {
+        const frame = await captureFrameBlob();
+        if (!frame) return;
+        const r = await uploadProctoringSnapshot("AI_FRAME", frame.blob, undefined, frame.capturedAt);
+        if (r.policyResult) onPolicyRef.current?.(r.policyResult);
+      } catch (err) {
+        if ((err as { code?: string }).code === "ATTEMPT_ENDED") {
+          isEndedRef.current = true;
+          onAttemptEnded?.();
+        }
+      } finally {
+        aiBusyRef.current = false;
+      }
+    }, ms);
+    return () => clearInterval(timer);
+  }, [aiEnabled, autoStartPeriodic, cameraStatus, aiIntervalSeconds, captureFrameBlob, onAttemptEnded]);
 
   useEffect(() => stopCamera, [stopCamera]);
 

@@ -54,6 +54,10 @@ export const env = {
   get AI_SERVICE_URL() {
     return optional("AI_SERVICE_URL", "");
   },
+  /** Bearer token shared with the Python AI service (AI_SERVICE_TOKEN there). */
+  get AI_SERVICE_TOKEN() {
+    return optional("AI_SERVICE_TOKEN", "");
+  },
   get isProd() {
     return process.env.NODE_ENV === "production";
   },
