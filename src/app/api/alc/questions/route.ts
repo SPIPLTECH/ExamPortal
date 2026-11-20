@@ -20,7 +20,8 @@ export const GET = handleRoute(async (req: Request) => {
   const category = url.searchParams.get("category");
   const stream = url.searchParams.get("stream");
 
-  const filter: FilterQuery<IQuestion> = { center: ctx.centerId };
+  // The shared bank excludes questions that belong to a specific test's pool.
+  const filter: FilterQuery<IQuestion> = { center: ctx.centerId, test: null };
   if (cls) filter.class = Number(cls);
   if (difficulty) filter.difficulty = difficulty;
   if (category) filter.category = category;

@@ -38,6 +38,7 @@ export const POST = handleRoute(async (req: Request) => {
       category: d.category,
       stream: d.class >= 11 ? d.stream ?? null : null,
       explanation: d.explanation ?? null,
+      imageUrl: d.imageUrl ?? null,
       center: ctx.centerId,
       createdBy: ctx.user.id,
     });

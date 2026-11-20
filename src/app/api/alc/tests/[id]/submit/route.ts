@@ -18,13 +18,10 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     return fail(`This test is already ${test.reviewStatus.toLowerCase()}`, 409);
   }
 
-  // The question bank must be able to generate this test's distribution.
+  // The test's own pool must have at least `totalQuestions` to serve each student.
   const feasibility = await validateTestFeasibility({
-    center: ctx.centerId,
-    targetClass: test.targetClass,
-    targetStream: test.targetStream ?? null,
+    _id: String(test._id),
     totalQuestions: test.totalQuestions,
-    distribution: test.distribution,
   });
   if (!feasibility.ok) {
     return fail(`Cannot submit: ${feasibility.error}`, 422);

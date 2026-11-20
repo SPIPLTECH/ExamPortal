@@ -19,6 +19,8 @@ export interface IQuestionOption {
 export interface IQuestion {
   _id: Types.ObjectId;
   center: Types.ObjectId; // owning ALC center (tenant)
+  /** When set, this question belongs to a specific test's pool (not the shared bank). */
+  test?: Types.ObjectId | null;
   createdBy: Types.ObjectId;
   text: string;
   options: IQuestionOption[];
@@ -47,6 +49,7 @@ const OptionSchema = new Schema<IQuestionOption>(
 const QuestionSchema = new Schema<IQuestion>(
   {
     center: { type: Schema.Types.ObjectId, ref: "ALCCenter", required: true, index: true },
+    test: { type: Schema.Types.ObjectId, ref: "Test", default: null, index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     text: { type: String, required: true, trim: true, maxlength: 5000 },
     options: {

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { auth } from "./auth";
 import { connectDB } from "./db";
 import { User, type IUser } from "@/models/User";
@@ -13,8 +14,11 @@ export type CurrentUser = {
   centerId: string | null;
 };
 
-/** Session user shaped from the JWT (no DB hit). Null if not signed in. */
-export async function getSessionUser(): Promise<CurrentUser | null> {
+/**
+ * Session user shaped from the JWT (no DB hit). Wrapped in React `cache()` so a
+ * layout and its page in the same request decode the cookie only once.
+ */
+export const getSessionUser = cache(async (): Promise<CurrentUser | null> => {
   const session = await auth();
   if (!session?.user) return null;
   const u = session.user;
@@ -26,7 +30,7 @@ export async function getSessionUser(): Promise<CurrentUser | null> {
     image: u.image ?? null,
     centerId: u.centerId ?? null,
   };
-}
+});
 
 /** Full user document from the DB for the signed-in user. */
 export async function getDbUser(): Promise<(IUser & { _id: unknown }) | null> {
@@ -36,9 +40,9 @@ export async function getDbUser(): Promise<(IUser & { _id: unknown }) | null> {
   return User.findById(s.id).lean<IUser>();
 }
 
-export async function getStudentProfile(
-  userId: string
-): Promise<IStudentProfile | null> {
-  await connectDB();
-  return StudentProfile.findOne({ user: userId }).lean<IStudentProfile>();
-}
+export const getStudentProfile = cache(
+  async (userId: string): Promise<IStudentProfile | null> => {
+    await connectDB();
+    return StudentProfile.findOne({ user: userId }).lean<IStudentProfile>();
+  }
+);

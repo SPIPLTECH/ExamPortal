@@ -4,45 +4,26 @@ import { Question } from "@/models/Question";
 import { ExamAttempt, type IExamAttempt } from "@/models/ExamAttempt";
 import { ExamResponse } from "@/models/ExamResponse";
 import { ExamResult } from "@/models/ExamResult";
-import { getPoolAvailability } from "./pool";
-import { resolveRules, computeAllocation, type Availability } from "./distribution";
-import { buildFrozenQuestions, toClientQuestion } from "./exam-selection";
-import type { Category, Stream } from "./constants";
-import { Types } from "mongoose";
+import { buildFrozenFromPool, toClientQuestion } from "./exam-selection";
 
-/** Build the frozen question set for a brand-new attempt. Throws on infeasible pool. */
+/**
+ * Build the frozen question set for a brand-new attempt from the TEST'S OWN
+ * question pool. Each student gets a different RANDOM subset of `totalQuestions`
+ * (e.g. 25 of 100) with shuffled options. Throws if the pool is too small.
+ */
 export async function freezeQuestionSet(test: ITest): Promise<IExamAttempt["questions"]> {
-  const availability: Availability = await getPoolAvailability(
-    String(test.center),
-    test.targetClass,
-    (test.targetStream as Stream | null) ?? null
-  );
-  const rules = resolveRules(test.targetClass, test.distribution);
-  const allocation = computeAllocation(rules, availability, test.totalQuestions);
-  if (!allocation.ok) {
-    throw new Error(allocation.error);
+  await connectDB();
+  const pool = await Question.find({ test: test._id, isActive: true }).lean();
+  const need = test.totalQuestions;
+  if (pool.length < need) {
+    throw new Error(
+      `This test has only ${pool.length} question(s); ${need} are required per student. Add more questions.`
+    );
   }
-
-  // Fetch the eligible pool per category.
-  const byCategory: Partial<Record<Category, Awaited<ReturnType<typeof Question.find>>>> = {};
-  for (const cat of Object.keys(allocation.allocation) as Category[]) {
-    const match: Record<string, unknown> = {
-      center: new Types.ObjectId(String(test.center)),
-      class: test.targetClass,
-      category: cat,
-      isActive: true,
-    };
-    if (test.targetClass >= 11 && test.targetStream) {
-      match.$or = [{ stream: test.targetStream }, { stream: null }];
-    }
-    byCategory[cat] = await Question.find(match).lean();
-  }
-
-  return buildFrozenQuestions(
-    byCategory as never,
-    allocation.allocation,
-    { marksPerQuestion: test.marksPerQuestion, negativeMarks: test.negativeMarking?.value ?? 0 }
-  );
+  return buildFrozenFromPool(pool, need, {
+    marksPerQuestion: test.marksPerQuestion,
+    negativeMarks: test.negativeMarking?.value ?? 0,
+  });
 }
 
 /** Client-safe projection of an attempt (no correct answers). */

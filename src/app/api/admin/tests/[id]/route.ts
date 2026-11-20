@@ -6,9 +6,8 @@ import "@/models/ALCCenter";
 import "@/models/User";
 import { requireSuperAdmin } from "@/lib/auth-helpers";
 import { ok, fail, handleRoute } from "@/lib/api";
-import { getPoolAvailability } from "@/lib/pool";
 
-/** Full test preview for the admin: settings + pool availability + a question sample. */
+/** Full test preview for the admin: settings + the test's own question pool (with answers). */
 export const GET = handleRoute(async (_req: Request, ctxArg: unknown) => {
   const { error } = await requireSuperAdmin();
   if (error) return error;
@@ -21,22 +20,9 @@ export const GET = handleRoute(async (_req: Request, ctxArg: unknown) => {
     .lean();
   if (!test) return fail("Test not found", 404);
 
-  const availability = await getPoolAvailability(
-    String((test.center as { _id?: unknown })?._id ?? test.center),
-    test.targetClass,
-    test.targetStream ?? null
-  );
+  // The test's own questions (admin may inspect questions AND answers).
+  const sample = await Question.find({ test: id, isActive: true }).limit(500).lean();
+  const poolCount = sample.length;
 
-  // Admins may inspect questions AND answers (sample from the eligible pool).
-  const sampleFilter: Record<string, unknown> = {
-    center: (test.center as { _id?: unknown })?._id ?? test.center,
-    class: test.targetClass,
-    isActive: true,
-  };
-  if (test.targetClass >= 11 && test.targetStream) {
-    sampleFilter.$or = [{ stream: test.targetStream }, { stream: null }];
-  }
-  const sample = await Question.find(sampleFilter).limit(50).lean();
-
-  return ok({ test, availability, sample });
+  return ok({ test, poolCount, sample });
 });

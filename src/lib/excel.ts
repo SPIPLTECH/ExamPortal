@@ -19,6 +19,7 @@ export const TEMPLATE_COLUMNS = [
   "Class Group",
   "Category",
   "Stream",
+  "Image URL",
 ] as const;
 
 export type NormalizedQuestion = {
@@ -30,6 +31,7 @@ export type NormalizedQuestion = {
   classGroup: string | null;
   category: string;
   stream: string | null;
+  imageUrl: string | null;
 };
 
 export type ParsedRow = {
@@ -156,6 +158,7 @@ export async function parseWorkbook(buffer: Buffer): Promise<ParsedRow[]> {
       classGroup: get(row, "Class Group"),
       category: get(row, "Category"),
       stream: get(row, "Stream"),
+      imageUrl: get(row, "Image URL"),
     }));
   }
   return rows;
@@ -173,6 +176,7 @@ type RawRow = {
   classGroup: string;
   category: string;
   stream: string;
+  imageUrl: string;
 };
 
 export function validateRow(rowNum: number, raw: RawRow): ParsedRow {
@@ -235,6 +239,7 @@ export function validateRow(rowNum: number, raw: RawRow): ParsedRow {
       classGroup: raw.classGroup || null,
       category: category!,
       stream: cls >= 11 ? stream : null,
+      imageUrl: raw.imageUrl?.trim() ? raw.imageUrl.trim() : null,
     },
   };
 }

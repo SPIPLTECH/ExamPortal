@@ -42,31 +42,47 @@ export function buildFrozenQuestions(
   }
 
   // Randomize overall question order, then assign sequential order numbers.
-  const ordered = shuffle(picked);
+  return shuffle(picked).map((q, idx) => freezeOne(q, idx + 1, opts));
+}
 
-  return ordered.map((q, idx) => {
-    const shuffledOptions = shuffle(q.options);
-    const options: IFrozenOption[] = shuffledOptions.map((o, i) => ({
-      key: OPTION_KEYS[i]!,
-      text: o.text,
-      imageUrl: o.imageUrl ?? null,
-    }));
-    // Which new display key holds the originally-correct option?
-    const correctIndex = shuffledOptions.findIndex((o) => o.key === q.correctOption);
-    const correctKey = OPTION_KEYS[correctIndex] ?? OPTION_KEYS[0]!;
+/** Freeze one question: shuffle its options and remap the correct key. */
+function freezeOne(
+  q: QuestionLike,
+  order: number,
+  opts: { marksPerQuestion: number; negativeMarks: number }
+): IFrozenQuestion {
+  const shuffledOptions = shuffle(q.options);
+  const options: IFrozenOption[] = shuffledOptions.map((o, i) => ({
+    key: OPTION_KEYS[i]!,
+    text: o.text,
+    imageUrl: o.imageUrl ?? null,
+  }));
+  const correctIndex = shuffledOptions.findIndex((o) => o.key === q.correctOption);
+  const correctKey = OPTION_KEYS[correctIndex] ?? OPTION_KEYS[0]!;
+  return {
+    question: q._id,
+    order,
+    category: q.category,
+    text: q.text,
+    imageUrl: q.imageUrl ?? null,
+    options,
+    correctOption: correctKey,
+    marks: opts.marksPerQuestion,
+    negativeMarks: opts.negativeMarks,
+  } as IFrozenQuestion;
+}
 
-    return {
-      question: q._id,
-      order: idx + 1,
-      category: q.category,
-      text: q.text,
-      imageUrl: q.imageUrl ?? null,
-      options,
-      correctOption: correctKey,
-      marks: opts.marksPerQuestion,
-      negativeMarks: opts.negativeMarks,
-    } as IFrozenQuestion;
-  });
+/**
+ * Pick `count` RANDOM questions from a test's pool and freeze them. Each student
+ * gets a different random subset (anti-cheating) with shuffled options.
+ */
+export function buildFrozenFromPool(
+  pool: QuestionLike[],
+  count: number,
+  opts: { marksPerQuestion: number; negativeMarks: number }
+): IFrozenQuestion[] {
+  const picked = shuffle(pool).slice(0, Math.min(count, pool.length));
+  return picked.map((q, idx) => freezeOne(q, idx + 1, opts));
 }
 
 /**

@@ -34,6 +34,7 @@ export type QuestionDoc = {
   stream?: string | null;
   classGroup?: string | null;
   explanation?: string | null;
+  imageUrl?: string | null;
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -53,11 +54,20 @@ export function QuestionDialog({
   onOpenChange,
   editing,
   onSaved,
+  preset,
+  basePath = "/api/alc/questions",
+  hideClassCategory = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   editing: QuestionDoc | null;
   onSaved: () => void;
+  /** Pre-fill class/stream when adding for a specific test. */
+  preset?: { class?: number; stream?: string | null };
+  /** API base: bank (default) or a test pool `/api/alc/tests/<id>/questions`. */
+  basePath?: string;
+  /** When adding to a test, class/stream come from the test — hide those fields. */
+  hideClassCategory?: boolean;
 }) {
   const [saving, setSaving] = useState(false);
   const [text, setText] = useState("");
@@ -68,6 +78,8 @@ export function QuestionDialog({
   const [category, setCategory] = useState("SYLLABUS");
   const [stream, setStream] = useState("");
   const [explanation, setExplanation] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -80,17 +92,19 @@ export function QuestionDialog({
       setCategory(editing.category);
       setStream(editing.stream ?? "");
       setExplanation(editing.explanation ?? "");
+      setImageUrl(editing.imageUrl ?? null);
     } else {
       setText("");
+      setImageUrl(null);
       setOptions(initialOptions());
       setCorrect("A");
       setDifficulty("MEDIUM");
-      setCls("");
+      setCls(preset?.class ? String(preset.class) : "");
       setCategory("SYLLABUS");
-      setStream("");
+      setStream(preset?.stream ?? "");
       setExplanation("");
     }
-  }, [open, editing]);
+  }, [open, editing, preset]);
 
   const showStream = Number(cls) >= 11;
 
@@ -112,6 +126,22 @@ export function QuestionDialog({
     );
   }
 
+  async function onPickImage(file: File | null) {
+    if (!file) return;
+    setUploading(true);
+    const fd = new FormData();
+    fd.set("image", file);
+    const res = await fetch("/api/alc/upload", { method: "POST", body: fd });
+    const json = await res.json();
+    setUploading(false);
+    if (!res.ok) {
+      toast.error(json.error || "Image upload failed");
+      return;
+    }
+    setImageUrl(json.data.url);
+    toast.success("Image attached");
+  }
+
   async function submit() {
     if (!cls) return toast.error("Select a class");
     if (showStream && !stream) return toast.error("Select a stream");
@@ -128,8 +158,9 @@ export function QuestionDialog({
       category,
       stream: showStream ? stream : null,
       explanation: explanation || null,
+      imageUrl: imageUrl || null,
     };
-    const url = editing ? `/api/alc/questions/${editing._id}` : "/api/alc/questions";
+    const url = editing ? `${basePath}/${editing._id}` : basePath;
     const res = await fetch(url, {
       method: editing ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
@@ -157,6 +188,30 @@ export function QuestionDialog({
           <div className="space-y-2">
             <Label>Question text *</Label>
             <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} />
+          </div>
+
+          {/* Optional question image */}
+          <div className="space-y-2">
+            <Label>Question image (optional)</Label>
+            <div className="flex items-center gap-3">
+              {imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imageUrl} alt="question" className="h-16 w-24 rounded-md border object-cover" />
+              )}
+              <Input
+                type="file"
+                accept="image/*"
+                className="max-w-xs"
+                onChange={(e) => onPickImage(e.target.files?.[0] ?? null)}
+                disabled={uploading}
+              />
+              {uploading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              {imageUrl && (
+                <Button type="button" size="sm" variant="ghost" onClick={() => setImageUrl(null)}>
+                  Remove
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -189,16 +244,18 @@ export function QuestionDialog({
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="Class *">
-              <Select value={cls} onValueChange={setCls}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>
-                  {STUDENT_CLASSES.map((c) => (
-                    <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
+            {!hideClassCategory && (
+              <Field label="Class *">
+                <Select value={cls} onValueChange={setCls}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    {STUDENT_CLASSES.map((c) => (
+                      <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
             <Field label="Category *">
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -219,7 +276,7 @@ export function QuestionDialog({
                 </SelectContent>
               </Select>
             </Field>
-            {showStream && (
+            {showStream && !hideClassCategory && (
               <Field label="Stream *">
                 <Select value={stream} onValueChange={setStream}>
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>

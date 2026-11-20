@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,27 +16,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DIFFICULTIES,
-  PROCTORING_MODES,
-  STREAMS,
-  STUDENT_CLASSES,
-} from "@/lib/constants";
-import { computeAllocation } from "@/lib/distribution";
-
-const CATEGORY_LABEL: Record<string, string> = {
-  SYLLABUS: "Syllabus",
-  AI_LITERACY: "AI Literacy",
-  IT_LITERACY: "IT Literacy",
-};
-
-type Rule = { category: string; min: number; max: number };
+import { DIFFICULTIES, PROCTORING_MODES, STREAMS, STUDENT_CLASSES } from "@/lib/constants";
+import { TestQuestionsManager } from "./test-questions-manager";
 
 export function TestComposer({ testId }: { testId?: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(!!testId);
   const [saving, setSaving] = useState(false);
-  const [availability, setAvailability] = useState<Record<string, number>>({});
+  const [reviewStatus, setReviewStatus] = useState<string>("DRAFT");
 
   const [f, setF] = useState({
     name: "",
@@ -59,12 +46,10 @@ export function TestComposer({ testId }: { testId?: string }) {
     requireFullscreen: true,
     maxTabSwitches: 3,
   });
-  const [distribution, setDistribution] = useState<Rule[]>([]);
 
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) =>
     setF((prev) => ({ ...prev, [k]: v }));
 
-  // Load existing test for editing.
   useEffect(() => {
     if (!testId) return;
     (async () => {
@@ -76,6 +61,7 @@ export function TestComposer({ testId }: { testId?: string }) {
         return;
       }
       const t = json.data.test;
+      setReviewStatus(t.reviewStatus);
       setF({
         name: t.name,
         description: t.description ?? "",
@@ -97,59 +83,20 @@ export function TestComposer({ testId }: { testId?: string }) {
         requireFullscreen: t.proctoring?.requireFullscreen ?? true,
         maxTabSwitches: t.proctoring?.maxTabSwitches ?? 3,
       });
-      setDistribution(t.distribution?.length ? t.distribution : []);
-      setAvailability(json.data.availability ?? {});
     })();
   }, [testId]);
 
-  // When class/stream changes, fetch availability + default distribution.
-  const loadPool = useCallback(async (cls: string, stream: string) => {
-    if (!cls) return;
-    const params = new URLSearchParams({ class: cls });
-    if (Number(cls) >= 11 && stream) params.set("stream", stream);
-    const res = await fetch(`/api/alc/pool?${params}`);
-    const json = await res.json();
-    if (res.ok) {
-      setAvailability(json.data.availability ?? {});
-      setDistribution((cur) => (cur.length ? cur : json.data.defaultRules));
-    }
-  }, []);
+  const showStream = Number(f.targetClass) >= 11;
 
-  function onClass(v: string) {
-    set("targetClass", v);
-    setDistribution([]); // reset to defaults for the new class
-    loadPool(v, f.targetStream);
-  }
-  function onStream(v: string) {
-    set("targetStream", v);
-    loadPool(f.targetClass, v);
-  }
-
-  function setRule(i: number, key: "min" | "max", v: number) {
-    setDistribution((d) => d.map((r, idx) => (idx === i ? { ...r, [key]: v } : r)));
-  }
-
-  // Live feasibility check (authoritative check also runs server-side on submit).
-  const feasibility =
-    distribution.length > 0
-      ? computeAllocation(distribution, availability, f.totalQuestions)
-      : null;
-
-  async function save(submitAfter: boolean) {
-    if (!f.name.trim()) return toast.error("Test name is required");
-    if (!f.targetClass) return toast.error("Select a target class");
-    if (Number(f.targetClass) >= 11 && !f.targetStream)
-      return toast.error("Select a stream for class 11/12");
-
-    setSaving(true);
-    const body = {
+  function buildBody() {
+    return {
       name: f.name,
       description: f.description || null,
       instructions: f.instructions || null,
       rules: f.rules || null,
       specialConditions: f.specialConditions || null,
       targetClass: Number(f.targetClass),
-      targetStream: Number(f.targetClass) >= 11 ? f.targetStream : null,
+      targetStream: showStream ? f.targetStream : null,
       totalQuestions: Number(f.totalQuestions),
       duration: Number(f.duration),
       marksPerQuestion: Number(f.marksPerQuestion),
@@ -163,37 +110,65 @@ export function TestComposer({ testId }: { testId?: string }) {
         requireFullscreen: f.requireFullscreen,
         maxTabSwitches: Number(f.maxTabSwitches),
       },
-      distribution,
+      distribution: [],
     };
+  }
 
+  function validate() {
+    if (!f.name.trim()) return toast.error("Test name is required"), false;
+    if (!f.targetClass) return toast.error("Select a target class"), false;
+    if (showStream && !f.targetStream) return toast.error("Select a stream for class 11/12"), false;
+    return true;
+  }
+
+  async function saveTest(): Promise<string | null> {
     const url = testId ? `/api/alc/tests/${testId}` : "/api/alc/tests";
     const res = await fetch(url, {
       method: testId ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(buildBody()),
     });
     const json = await res.json();
     if (!res.ok) {
-      setSaving(false);
       toast.error(json.error || "Save failed");
       if (json.issues) toast.error(Object.values(json.issues)[0] as string);
+      return null;
+    }
+    return testId ?? json.data.id;
+  }
+
+  // New test → create draft, then go to the edit page to add questions.
+  async function createAndContinue() {
+    if (!validate()) return;
+    setSaving(true);
+    const id = await saveTest();
+    setSaving(false);
+    if (!id) return;
+    toast.success("Draft saved — now add questions");
+    router.push(`/alc/tests/${id}`);
+    router.refresh();
+  }
+
+  async function save(submitAfter: boolean) {
+    if (!validate()) return;
+    setSaving(true);
+    const id = await saveTest();
+    if (!id) {
+      setSaving(false);
       return;
     }
-    const id = testId ?? json.data.id;
-
     if (submitAfter) {
       const sres = await fetch(`/api/alc/tests/${id}/submit`, { method: "POST" });
       const sjson = await sres.json();
       setSaving(false);
       if (!sres.ok) {
         toast.error(sjson.error || "Submit failed");
-        router.push("/alc/tests");
         return;
       }
       toast.success("Test submitted for approval");
     } else {
       setSaving(false);
-      toast.success(testId ? "Test updated" : "Draft saved");
+      toast.success("Test saved");
     }
     router.push("/alc/tests");
     router.refresh();
@@ -206,8 +181,6 @@ export function TestComposer({ testId }: { testId?: string }) {
       </div>
     );
   }
-
-  const showStream = Number(f.targetClass) >= 11;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -230,17 +203,13 @@ export function TestComposer({ testId }: { testId?: string }) {
             <Textarea value={f.rules} onChange={(e) => set("rules", e.target.value)} rows={3} />
           </div>
         </div>
-        <div className="space-y-2">
-          <Label>Special conditions</Label>
-          <Textarea value={f.specialConditions} onChange={(e) => set("specialConditions", e.target.value)} rows={2} />
-        </div>
       </Section>
 
       <Section title="Target & marking">
         <div className="grid sm:grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label>Class *</Label>
-            <Select value={f.targetClass} onValueChange={onClass}>
+            <Select value={f.targetClass} onValueChange={(v) => set("targetClass", v)}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
                 {STUDENT_CLASSES.map((c) => (
@@ -252,7 +221,7 @@ export function TestComposer({ testId }: { testId?: string }) {
           {showStream && (
             <div className="space-y-2">
               <Label>Stream *</Label>
-              <Select value={f.targetStream} onValueChange={onStream}>
+              <Select value={f.targetStream} onValueChange={(v) => set("targetStream", v)}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
                   {STREAMS.map((s) => (
@@ -262,7 +231,11 @@ export function TestComposer({ testId }: { testId?: string }) {
               </Select>
             </div>
           )}
-          <NumField label="Total questions" value={f.totalQuestions} onChange={(v) => set("totalQuestions", v)} />
+          <div className="space-y-2">
+            <Label>Questions per student</Label>
+            <Input type="number" min={1} value={f.totalQuestions} onChange={(e) => set("totalQuestions", Number(e.target.value))} />
+            <p className="text-[11px] text-muted-foreground">Random per student from the pool</p>
+          </div>
           <NumField label="Duration (min)" value={f.duration} onChange={(v) => set("duration", v)} />
           <NumField label="Marks / question" value={f.marksPerQuestion} onChange={(v) => set("marksPerQuestion", v)} />
           <NumField label="Passing marks" value={f.passingMarks} onChange={(v) => set("passingMarks", v)} />
@@ -283,59 +256,24 @@ export function TestComposer({ testId }: { testId?: string }) {
           <Switch checked={f.negEnabled} onCheckedChange={(v) => set("negEnabled", v)} />
           <Label>Negative marking</Label>
           {f.negEnabled && (
-            <Input
-              type="number"
-              className="w-28"
-              value={f.negValue}
-              onChange={(e) => set("negValue", Number(e.target.value))}
-              placeholder="per wrong"
-            />
+            <Input type="number" className="w-28" value={f.negValue} onChange={(e) => set("negValue", Number(e.target.value))} placeholder="per wrong" />
           )}
         </div>
       </Section>
 
-      <Section title="Question distribution">
-        {distribution.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Select a class to configure distribution.</p>
-        ) : (
-          <>
-            <div className="space-y-2">
-              {distribution.map((r, i) => (
-                <div key={r.category} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3">
-                  <div>
-                    <p className="text-sm font-medium">{CATEGORY_LABEL[r.category] ?? r.category}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {availability[r.category] ?? 0} available
-                    </p>
-                  </div>
-                  <LabeledNum label="min" value={r.min} onChange={(v) => setRule(i, "min", v)} />
-                  <LabeledNum label="max" value={r.max} onChange={(v) => setRule(i, "max", v)} />
-                  <div className="w-5" />
-                </div>
-              ))}
-            </div>
-            {feasibility && (
-              <div
-                className={`mt-3 flex items-start gap-2 rounded-lg p-3 text-sm ${
-                  feasibility.ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                }`}
-              >
-                {feasibility.ok ? (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 mt-0.5" />
-                    This test can be generated — exactly {f.totalQuestions} questions fit the pool.
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle className="h-4 w-4 mt-0.5" />
-                    {feasibility.error}
-                  </>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </Section>
+      {/* Questions manager — only once the test exists (so questions can attach to it). */}
+      {testId ? (
+        <TestQuestionsManager
+          testId={testId}
+          targetClass={Number(f.targetClass)}
+          targetStream={showStream ? f.targetStream : null}
+          perStudent={Number(f.totalQuestions)}
+        />
+      ) : (
+        <div className="rounded-xl border border-dashed bg-muted/30 p-5 text-sm text-muted-foreground">
+          Save the test first, then you can add questions manually, import from Excel, or pick from your bank.
+        </div>
+      )}
 
       <Section title="Proctoring">
         <div className="grid sm:grid-cols-2 gap-4">
@@ -367,13 +305,24 @@ export function TestComposer({ testId }: { testId?: string }) {
       </Section>
 
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={() => save(false)} disabled={saving}>
-          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-          Save draft
-        </Button>
-        <Button onClick={() => save(true)} disabled={saving || (feasibility ? !feasibility.ok : false)}>
-          Save &amp; submit for approval
-        </Button>
+        {!testId ? (
+          <Button onClick={createAndContinue} disabled={saving}>
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save &amp; add questions
+          </Button>
+        ) : (
+          <>
+            <Button variant="outline" onClick={() => save(false)} disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save changes
+            </Button>
+            {reviewStatus !== "SUBMITTED" && (
+              <Button onClick={() => save(true)} disabled={saving}>
+                Save &amp; submit for approval
+              </Button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -381,48 +330,18 @@ export function TestComposer({ testId }: { testId?: string }) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border bg-background p-5">
+    <div className="rounded-xl border bg-card p-5">
       <h2 className="font-semibold mb-4">{title}</h2>
       <div className="space-y-4">{children}</div>
     </div>
   );
 }
 
-function NumField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-}) {
+function NumField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
       <Input type="number" value={value} onChange={(e) => onChange(Number(e.target.value))} />
-    </div>
-  );
-}
-
-function LabeledNum({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <Input
-        type="number"
-        className="w-16 h-9"
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
     </div>
   );
 }
