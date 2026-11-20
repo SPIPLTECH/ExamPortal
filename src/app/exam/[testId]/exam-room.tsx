@@ -21,6 +21,7 @@ import { WarningBanner } from "@/components/proctoring/warning-banner";
 import { PreExamCheck } from "@/components/proctoring/pre-exam-check";
 import { FullscreenGate } from "@/components/proctoring/fullscreen-gate";
 import { sendProctoringEvent } from "@/lib/proctoring/service";
+import { releaseExamLock } from "@/lib/proctoring/examLock";
 import { ShieldCheck, Smartphone, UserX, Users } from "lucide-react";
 
 type ClientQuestion = {
@@ -62,6 +63,7 @@ export function ExamRoom({ testId }: { testId: string }) {
   const [remaining, setRemaining] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [finished, setFinished] = useState(false);
   const endLocalRef = useRef<number>(0);
   const submittedRef = useRef(false);
 
@@ -78,6 +80,8 @@ export function ExamRoom({ testId }: { testId: string }) {
   const onProctorEnded = useCallback(() => {
     if (endedRef.current) return;
     endedRef.current = true;
+    setFinished(true);
+    releaseExamLock();
     toast.error("Your exam was ended due to proctoring violations.");
     router.replace("/student/history");
   }, [router]);
@@ -113,10 +117,25 @@ export function ExamRoom({ testId }: { testId: string }) {
 
   // In-browser detection is the fallback; when the AI service is on it does the job server-side
   // (running both would double-count the same incident).
+  // Show the alert instantly (even before the server answers), then the server's
+  // official warning replaces it.
+  const [localWarning, setLocalWarning] = useState<string | null>(null);
+  const localTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const detection = useObjectDetection({
     videoRef: webcam.videoRef,
     active: proctoringEnabled && proctorReady && !aiEnabled,
-    onViolation: (eventType, meta) => monitor.reportExternal(eventType, "HIGH", meta),
+    onViolation: (eventType, meta) => {
+      const text: Record<string, string> = {
+        PHONE_DETECTED: "A mobile phone was detected. Put it away immediately.",
+        MULTIPLE_FACES: "Another person was detected near you. Only you may be present.",
+        FACE_MISSING: "Your face is not visible. Stay in front of the camera.",
+        HEAD_POSE_AWAY: "You are looking away from the screen. Face the camera.",
+      };
+      setLocalWarning(text[eventType] ?? "Proctoring violation detected.");
+      if (localTimerRef.current) clearTimeout(localTimerRef.current);
+      localTimerRef.current = setTimeout(() => setLocalWarning(null), 7000);
+      monitor.reportExternal(eventType, "HIGH", meta);
+    },
   });
 
   // Re-bind the camera stream to the exam's <video> after the pre-check unmounts.
@@ -189,6 +208,9 @@ export function ExamRoom({ testId }: { testId: string }) {
         return;
       }
       toast.success(auto ? "Time up — exam submitted" : "Exam submitted");
+      endedRef.current = true; // stop proctoring side-effects (no fullscreen gate after submit)
+      setFinished(true);
+      releaseExamLock();
       router.replace(`/student/history`);
     },
     [testId, router]
@@ -305,7 +327,7 @@ export function ExamRoom({ testId }: { testId: string }) {
     );
   }
 
-  const fullscreenViolation = proctoringEnabled && proctorReady && !monitor.isFullscreen;
+  const fullscreenViolation = proctoringEnabled && proctorReady && !monitor.isFullscreen && !finished;
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
   const ss = String(remaining % 60).padStart(2, "0");
   const low = remaining <= 60;
@@ -380,9 +402,21 @@ export function ExamRoom({ testId }: { testId: string }) {
               <Button variant="outline" onClick={clearResponse}>
                 <Eraser className="h-4 w-4" /> Clear
               </Button>
-              <Button onClick={next} className="ml-auto">
-                Save &amp; Next <ChevronRight className="h-4 w-4" />
-              </Button>
+              {idx < state.questions.length - 1 ? (
+                <Button onClick={next} className="ml-auto">
+                  Save &amp; Next <ChevronRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    saveAnswer(q.question, answers[q.question] ?? null, !!marks[q.question]);
+                    setConfirmOpen(true);
+                  }}
+                  className="ml-auto"
+                >
+                  <CheckCircle2 className="h-4 w-4" /> Submit Exam
+                </Button>
+              )}
             </div>
           </div>
         </main>
@@ -457,12 +491,15 @@ export function ExamRoom({ testId }: { testId: string }) {
       {/* Live proctoring overlays. */}
       {proctoringEnabled && proctorReady && (
         <>
-          {monitor.activeWarningMessage && (
+          {(monitor.activeWarningMessage || localWarning) && (
             <WarningBanner
-              message={monitor.activeWarningMessage}
+              message={monitor.activeWarningMessage ?? localWarning ?? ""}
               warningCount={monitor.warnings}
               maxWarnings={monitor.maxWarnings}
-              onDismiss={monitor.clearWarningMessage}
+              onDismiss={() => {
+                monitor.clearWarningMessage();
+                setLocalWarning(null);
+              }}
             />
           )}
 
@@ -511,6 +548,7 @@ function DetectionBadge({ status }: { status: string }) {
     NO_FACE: { label: "No face detected — stay in view", cls: "bg-amber-500 text-white", Icon: UserX },
     MULTIPLE: { label: "Multiple people detected!", cls: "bg-red-600 text-white", Icon: Users },
     PHONE: { label: "Phone detected — put it away!", cls: "bg-red-600 text-white", Icon: Smartphone },
+    AWAY: { label: "Looking away — face the screen", cls: "bg-amber-500 text-white", Icon: UserX },
     ERROR: { label: "Detection unavailable — reload page", cls: "bg-amber-600 text-white", Icon: ShieldCheck },
     IDLE: { label: "Camera monitored", cls: "bg-slate-700 text-slate-200", Icon: ShieldCheck },
   };
