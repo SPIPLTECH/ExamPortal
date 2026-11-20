@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { TermsDialog } from "@/components/terms-dialog";
 import { toast } from "sonner";
 import { GraduationCap, Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -259,11 +260,7 @@ export default function RegisterPage() {
                 className="mt-0.5"
               />
               <span>
-                I accept the{" "}
-                <Link href="/terms" className="text-primary hover:underline">
-                  Terms and Conditions
-                </Link>
-                .
+                I accept the <TermsDialog />.
               </span>
             </label>
 

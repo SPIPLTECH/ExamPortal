@@ -13,7 +13,7 @@ const ROLE_ROUTES: { prefix: string; roles: string[] }[] = [
   { prefix: "/api/exam", roles: ["STUDENT"] },
 ];
 
-const PUBLIC_PATHS = ["/login", "/register", "/api/auth", "/api/public"];
+const PUBLIC_PATHS = ["/login", "/register", "/terms", "/api/auth", "/api/public"];
 
 function homeForRole(role?: string): string {
   if (role === "SUPER_ADMIN") return "/admin";
