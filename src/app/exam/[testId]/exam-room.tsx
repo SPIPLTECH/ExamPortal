@@ -19,6 +19,8 @@ import { useObjectDetection } from "@/hooks/useObjectDetection";
 import { WebcamPreview } from "@/components/proctoring/webcam-preview";
 import { WarningBanner } from "@/components/proctoring/warning-banner";
 import { PreExamCheck } from "@/components/proctoring/pre-exam-check";
+import { FullscreenGate } from "@/components/proctoring/fullscreen-gate";
+import { sendProctoringEvent } from "@/lib/proctoring/service";
 import { ShieldCheck, Smartphone, UserX, Users } from "lucide-react";
 
 type ClientQuestion = {
@@ -91,9 +93,18 @@ export function ExamRoom({ testId }: { testId: string }) {
     onPolicyResult: (p) => policyHandlerRef.current(p),
   });
 
+  const captureRef = useRef(webcam.captureAndUpload);
+  useEffect(() => {
+    captureRef.current = webcam.captureAndUpload;
+  }, [webcam.captureAndUpload]);
+
   const monitor = useBrowserMonitoring({
     isActive: proctoringEnabled && proctorReady,
     onEnded: onProctorEnded,
+    // Every warning stores a camera snapshot for the center and admin to review.
+    onWarning: (eventType) => {
+      void captureRef.current("INCIDENT_SNAPSHOT", eventType);
+    },
   });
   const applyPolicyResult = monitor.applyPolicyResult;
   useEffect(() => {
@@ -294,6 +305,7 @@ export function ExamRoom({ testId }: { testId: string }) {
     );
   }
 
+  const fullscreenViolation = proctoringEnabled && proctorReady && !monitor.isFullscreen;
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
   const ss = String(remaining % 60).padStart(2, "0");
   const low = remaining <= 60;
@@ -426,6 +438,22 @@ export function ExamRoom({ testId }: { testId: string }) {
         </DialogContent>
       </Dialog>
 
+      {/* Strict fullscreen: exam is hidden until the student returns, else it is terminated. */}
+      {fullscreenViolation && (
+        <FullscreenGate
+          warnings={monitor.warnings}
+          maxWarnings={monitor.maxWarnings}
+          onReturn={monitor.requestFullscreen}
+          onTimeout={() => {
+            sendProctoringEvent({ eventType: "FULLSCREEN_TIMEOUT", severity: "CRITICAL" })
+              .then((r) => {
+                if (r.policyResult?.terminated) onProctorEnded();
+              })
+              .catch(() => onProctorEnded());
+          }}
+        />
+      )}
+
       {/* Live proctoring overlays. */}
       {proctoringEnabled && proctorReady && (
         <>
@@ -483,6 +511,7 @@ function DetectionBadge({ status }: { status: string }) {
     NO_FACE: { label: "No face detected — stay in view", cls: "bg-amber-500 text-white", Icon: UserX },
     MULTIPLE: { label: "Multiple people detected!", cls: "bg-red-600 text-white", Icon: Users },
     PHONE: { label: "Phone detected — put it away!", cls: "bg-red-600 text-white", Icon: Smartphone },
+    ERROR: { label: "Detection unavailable — reload page", cls: "bg-amber-600 text-white", Icon: ShieldCheck },
     IDLE: { label: "Camera monitored", cls: "bg-slate-700 text-slate-200", Icon: ShieldCheck },
   };
   const s = map[status] ?? map.IDLE;

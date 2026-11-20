@@ -29,6 +29,7 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   const form = await req.formData();
   const type = String(form.get("type") ?? "");
   const file = form.get("frame");
+  const reason = String(form.get("reason") ?? "").slice(0, 64) || null;
   if (!VALID_TYPES.includes(type)) return fail("Invalid snapshot type", 400);
   if (!file || !(file instanceof File)) return fail("No frame uploaded", 400);
   if (file.size > MAX_BYTES) return fail("Frame too large", 400);
@@ -81,7 +82,7 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
           attempt: attempt._id,
           category: "INCIDENT",
           cloudinary: uploaded,
-          analysis: { events: events.map((e) => e.type), faces: analysis.faces.count },
+          analysis: { reason: events[0]!.type, events: events.map((e) => e.type), faces: analysis.faces.count },
           capturedAt: new Date(),
         });
       } catch {
@@ -128,6 +129,7 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     attempt: attempt._id,
     category,
     cloudinary: uploaded,
+    analysis: reason ? { reason } : null,
     capturedAt: new Date(),
   });
 

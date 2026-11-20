@@ -16,6 +16,8 @@ interface Props {
   isActive: boolean;
   trackClipboard?: boolean;
   onEnded?: () => void;
+  /** Called after the server issues a warning (used to grab a violation snapshot). */
+  onWarning?: (eventType: string) => void;
   initialWarnings?: number;
   initialMaxWarnings?: number;
 }
@@ -29,6 +31,7 @@ export function useBrowserMonitoring({
   isActive,
   trackClipboard = true,
   onEnded,
+  onWarning,
   initialWarnings = 0,
   initialMaxWarnings = 3,
 }: Props) {
@@ -47,6 +50,10 @@ export function useBrowserMonitoring({
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastScreenshotRef = useRef(0);
   const warningsRef = useRef(initialWarnings);
+  const onWarningRef = useRef(onWarning);
+  useEffect(() => {
+    onWarningRef.current = onWarning;
+  }, [onWarning]);
   useEffect(() => {
     warningsRef.current = warnings;
   }, [warnings]);
@@ -76,6 +83,7 @@ export function useBrowserMonitoring({
           setMaxWarnings(p.maxWarnings);
           setIsFlagged(p.isFlagged);
           if (p.warningIssued && p.message) setActiveWarningMessage(p.message);
+          if (p.warningIssued) onWarningRef.current?.(eventType);
           if (p.terminated && onEnded) onEnded();
         }
       } catch (err) {

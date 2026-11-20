@@ -108,15 +108,23 @@ export function useWebcamCapture({
   }, []);
 
   const captureAndUpload = useCallback(
-    async (type: "PRE_EXAM_IDENTITY" | "PERIODIC_SNAPSHOT" | "INCIDENT_SNAPSHOT"): Promise<SnapshotUploadResult | null> => {
-      if (isEndedRef.current || isUploadingRef.current) return null;
+    async (
+      type: "PRE_EXAM_IDENTITY" | "PERIODIC_SNAPSHOT" | "INCIDENT_SNAPSHOT",
+      reason?: string
+    ): Promise<SnapshotUploadResult | null> => {
+      if (isEndedRef.current) return null;
+      // A violation snapshot must never be dropped because a periodic upload is running.
+      if (isUploadingRef.current) {
+        if (type !== "INCIDENT_SNAPSHOT") return null;
+        await new Promise((r) => setTimeout(r, 800));
+      }
       const foreground = type === "PRE_EXAM_IDENTITY";
       isUploadingRef.current = true;
       if (foreground) setIsCapturing(true);
       try {
         const frame = await captureFrameBlob();
         if (!frame) throw new Error("Video frame not available");
-        const result = await uploadProctoringSnapshot(type, frame.blob, undefined, frame.capturedAt);
+        const result = await uploadProctoringSnapshot(type, frame.blob, undefined, frame.capturedAt, reason);
         return result;
       } catch (err) {
         if ((err as { code?: string }).code === "ATTEMPT_ENDED") {

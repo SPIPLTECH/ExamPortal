@@ -47,6 +47,7 @@ const NAV: Record<string, NavItem[]> = {
     { href: "/alc/students", label: "Students", icon: Users },
     { href: "/alc/schedule", label: "Scheduling", icon: CalendarClock },
     { href: "/alc/results", label: "Results", icon: BarChart3 },
+    { href: "/alc/proctoring", label: "Proctoring", icon: ShieldAlert },
   ],
   STUDENT: [
     { href: "/student", label: "Home", icon: LayoutDashboard },

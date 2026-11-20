@@ -18,7 +18,11 @@ const VIOLATION_TYPES = new Set([
   "PHONE_DETECTED",
   "HEAD_POSE_AWAY",
   "IDENTITY_MISMATCH",
+  "FULLSCREEN_TIMEOUT",
 ]);
+
+/** Violations that end the exam immediately, regardless of the warning count. */
+const IMMEDIATE_TERMINATION = new Set(["FULLSCREEN_TIMEOUT"]);
 
 /** Which session counter (if any) a raw event type bumps. */
 const COUNTER_FOR: Record<string, keyof IProctoringSession["counters"]> = {
@@ -34,13 +38,14 @@ const COUNTER_FOR: Record<string, keyof IProctoringSession["counters"]> = {
 const HUMAN: Record<string, string> = {
   TAB_HIDDEN: "You switched away from the exam tab.",
   WINDOW_BLUR: "The exam window lost focus.",
-  FULLSCREEN_EXIT: "You exited fullscreen mode.",
+  FULLSCREEN_EXIT: "You exited fullscreen. Fullscreen is mandatory — return to fullscreen immediately or your exam will be terminated.",
   SCREENSHOT_ATTEMPT: "A screenshot attempt was detected.",
   SCREEN_SHARE_ATTEMPT: "Screen sharing is not allowed during the exam.",
   FACE_MISSING: "Your face was not visible to the camera. Stay in view of the camera.",
   MULTIPLE_FACES: "Another person was detected in your camera view. Only you may be present during the exam.",
   PHONE_DETECTED: "A mobile phone or other prohibited object was detected. Put it away now.",
   HEAD_POSE_AWAY: "You were looking away from the screen. Face the camera while taking the exam.",
+  FULLSCREEN_TIMEOUT: "You did not return to fullscreen in time.",
   IDENTITY_MISMATCH: "The person in front of the camera does not match your verified photo.",
 };
 
@@ -79,12 +84,15 @@ export function applyPolicy(
     session.latestWarningMessage = message;
   }
 
-  const terminated = session.warnings >= session.maxWarnings && warningIssued;
+  const terminated =
+    warningIssued && (session.warnings >= session.maxWarnings || IMMEDIATE_TERMINATION.has(eventType));
   if (terminated) {
     session.status = "TERMINATED";
     session.terminationReason = "Exceeded the allowed number of proctoring violations";
     session.endedAt = new Date();
-    message = `You have exceeded the allowed number of violations (${session.maxWarnings}). Your exam has been submitted.`;
+    message = IMMEDIATE_TERMINATION.has(eventType)
+      ? "Your exam was terminated because you did not return to fullscreen."
+      : `You have exceeded the allowed number of violations (${session.maxWarnings}). Your exam has been submitted.`;
   }
 
   return {

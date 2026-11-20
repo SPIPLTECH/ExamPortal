@@ -76,9 +76,11 @@ export async function uploadProctoringSnapshot(
   type: "PRE_EXAM_IDENTITY" | "PERIODIC_SNAPSHOT" | "INCIDENT_SNAPSHOT" | "AI_FRAME",
   blob: Blob,
   _simulationMode?: "NORMAL" | "NO_FACE" | "MULTIPLE_FACES",
-  capturedAt?: string
+  capturedAt?: string,
+  reason?: string
 ): Promise<SnapshotUploadResult> {
   const fd = new FormData();
+  if (reason) fd.set("reason", reason);
   fd.set("type", type);
   fd.set("frame", blob, "frame.jpg");
   if (capturedAt) fd.set("capturedAt", capturedAt);
