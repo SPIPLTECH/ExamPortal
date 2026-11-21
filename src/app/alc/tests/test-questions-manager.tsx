@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Loader2, FileSpreadsheet, Library, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, FileSpreadsheet, Library, CheckCircle2, AlertTriangle, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { QuestionDialog, type QuestionDoc } from "@/app/alc/questions/question-dialog";
 import { PickFromBankDialog } from "./pick-from-bank-dialog";
 import { TestExcelImportDialog } from "./test-excel-import-dialog";
+import { TestImageImportDialog } from "./test-image-import-dialog";
 
 const CATEGORY_LABEL: Record<string, string> = {
   SYLLABUS: "Syllabus",
@@ -32,6 +33,7 @@ export function TestQuestionsManager({
   const [editing, setEditing] = useState<QuestionDoc | null>(null);
   const [pickOpen, setPickOpen] = useState(false);
   const [excelOpen, setExcelOpen] = useState(false);
+  const [imageOpen, setImageOpen] = useState(false);
 
   const base = `/api/alc/tests/${testId}/questions`;
 
@@ -74,6 +76,9 @@ export function TestQuestionsManager({
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => setExcelOpen(true)}>
             <FileSpreadsheet className="h-4 w-4" /> Import Excel
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setImageOpen(true)}>
+            <ImageIcon className="h-4 w-4" /> Import with images
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => setPickOpen(true)}>
             <Library className="h-4 w-4" /> Pick from bank
@@ -148,6 +153,12 @@ export function TestQuestionsManager({
         onOpenChange={setExcelOpen}
         testId={testId}
         onImported={() => { setExcelOpen(false); load(); }}
+      />
+      <TestImageImportDialog
+        open={imageOpen}
+        onOpenChange={setImageOpen}
+        testId={testId}
+        onImported={() => { setImageOpen(false); load(); }}
       />
     </div>
   );
