@@ -26,9 +26,11 @@ export async function requireStudentContext(): Promise<
 }
 
 /**
- * Mongoose filter for tests this student is eligible to see: published,
- * approved, within the exam window, matching class/stream, and belonging to
- * the student's center (or explicitly assigned to it).
+ * Tests a student may see: every ADMIN-APPROVED test of their center that
+ * targets their class (and their stream, if the test is stream-specific).
+ * We deliberately do NOT require the ALC to have scheduled it or filter on the
+ * exam window here — approved center tests are visible; the exam window only
+ * gates *starting* (see examLive). Tests whose window has already ended are hidden.
  */
 export function eligibleTestFilter(profile: IStudentProfile): FilterQuery<ITest> {
   const now = new Date();
@@ -36,9 +38,7 @@ export function eligibleTestFilter(profile: IStudentProfile): FilterQuery<ITest>
 
   const filter: FilterQuery<ITest> = {
     reviewStatus: "APPROVED",
-    status: { $in: ["SCHEDULED", "ACTIVE"] },
-    "schedule.endTime": { $gte: now },
-    "schedule.eligibleClasses": profile.class,
+    targetClass: profile.class,
     $and: [
       {
         $or: [
@@ -46,10 +46,19 @@ export function eligibleTestFilter(profile: IStudentProfile): FilterQuery<ITest>
           { assignedCenters: { $in: centerIds } },
         ],
       },
+      // Stream-specific tests (11/12) must match the student's stream; others apply to all.
       {
         $or: [
-          { "schedule.eligibleStreams": { $size: 0 } },
-          ...(profile.stream ? [{ "schedule.eligibleStreams": profile.stream }] : []),
+          { targetStream: null },
+          ...(profile.stream ? [{ targetStream: profile.stream }] : []),
+        ],
+      },
+      // Hide only tests whose exam window has clearly ended.
+      {
+        $or: [
+          { "schedule.endTime": null },
+          { "schedule.endTime": { $exists: false } },
+          { "schedule.endTime": { $gte: now } },
         ],
       },
     ],
@@ -57,19 +66,25 @@ export function eligibleTestFilter(profile: IStudentProfile): FilterQuery<ITest>
   return filter;
 }
 
-/** Is the enrollment window currently open for a test? */
+/** Is enrollment currently open? Open until the exam window ends (or always, if unscheduled). */
 export function enrollmentOpen(test: Pick<ITest, "schedule">): boolean {
   const now = new Date();
-  const deadline = test.schedule?.enrollmentDeadline ?? test.schedule?.startTime;
+  const deadline = test.schedule?.enrollmentDeadline ?? test.schedule?.endTime;
   if (!deadline) return true;
   return now <= new Date(deadline);
 }
 
-/** Is the exam currently live (within start/end window)? */
+/**
+ * Can the exam be started now?
+ *  - Unscheduled (no window): always takeable once approved (timer = duration).
+ *  - Scheduled: only within the start/end window.
+ */
 export function examLive(test: Pick<ITest, "schedule">): boolean {
-  const now = new Date();
   const s = test.schedule?.startTime;
   const e = test.schedule?.endTime;
-  if (!s || !e) return false;
-  return now >= new Date(s) && now <= new Date(e);
+  if (!s && !e) return true;
+  const now = new Date();
+  if (s && now < new Date(s)) return false;
+  if (e && now > new Date(e)) return false;
+  return true;
 }
