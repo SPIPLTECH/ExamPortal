@@ -100,7 +100,7 @@ export default function StudentEntryPage() {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!verified) return toast.error("Verify your mobile number or email first");
+    if (!verified) return toast.error("Verify your email or mobile number first");
     if (!form.class) return toast.error("Please select your class");
     if (showMscit && !form.mscit) return toast.error("Please tell us if you have completed MS-CIT");
     if (!photo) return toast.error("Please upload your photo");
@@ -226,10 +226,10 @@ export default function StudentEntryPage() {
   );
 }
 
-/** Verify ONE of mobile / email. Once one is verified the other is not asked for. */
+/** Verify ONE of email / mobile. Once one is verified the other is not asked for. */
 function VerifyContact({ verified, onVerified }: { verified: Verified | null; onVerified: (v: Verified | null) => void }) {
-  const [mobile, setMobile] = useState("");
   const [email, setEmail] = useState("");
+  const [mobile, setMobile] = useState("");
   const [active, setActive] = useState<VType | null>(null); // which channel has an OTP pending
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState<"send" | "confirm" | null>(null);
@@ -320,27 +320,27 @@ function VerifyContact({ verified, onVerified }: { verified: Verified | null; on
 
   return (
     <Card title="Verify your contact" icon={BadgeCheck}>
-      <p className="text-sm text-muted-foreground mb-4">Verify your mobile number <b>or</b> email address to continue. You only need to verify one.</p>
+      <p className="text-sm text-muted-foreground mb-4">Verify your email address <b>or</b> mobile number to continue. You only need to verify one.</p>
 
-      <Field label="Mobile Number">
-        <IconInput icon={Phone} type="tel" value={mobile} onChange={(v) => { setMobile(v); if (active === "MOBILE") setActive(null); }} placeholder="Enter 10-digit mobile number" />
+      <Field label="Email Address">
+        <IconInput icon={Mail} type="email" value={email} onChange={(v) => { setEmail(v); if (active === "EMAIL") setActive(null); }} placeholder="Enter email address" />
       </Field>
-      <Button type="button" className="w-full mt-2" onClick={() => send("MOBILE")} disabled={busy === "send" || mobile.replace(/\D/g, "").length < 10 || (active === "MOBILE" && cool > 0)}>
-        {busy === "send" && active !== "EMAIL" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />} Verify Mobile Number
+      <Button type="button" className="w-full mt-2" onClick={() => send("EMAIL")} disabled={busy === "send" || !email.includes("@") || (active === "EMAIL" && cool > 0)}>
+        {busy === "send" && active === "EMAIL" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Verify Email Address
       </Button>
-      {otpBox("MOBILE")}
+      {otpBox("EMAIL")}
 
       <div className="flex items-center gap-3 my-4 text-xs font-medium text-muted-foreground">
         <span className="h-px flex-1 bg-border" /> OR <span className="h-px flex-1 bg-border" />
       </div>
 
-      <Field label="Email Address">
-        <IconInput icon={Mail} type="email" value={email} onChange={(v) => { setEmail(v); if (active === "EMAIL") setActive(null); }} placeholder="Enter email address" />
+      <Field label="Mobile Number">
+        <IconInput icon={Phone} type="tel" value={mobile} onChange={(v) => { setMobile(v); if (active === "MOBILE") setActive(null); }} placeholder="Enter 10-digit mobile number" />
       </Field>
-      <Button type="button" variant="outline" className="w-full mt-2" onClick={() => send("EMAIL")} disabled={busy === "send" || !email.includes("@") || (active === "EMAIL" && cool > 0)}>
-        {busy === "send" && active === "EMAIL" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Verify Email Address
+      <Button type="button" variant="outline" className="w-full mt-2" onClick={() => send("MOBILE")} disabled={busy === "send" || mobile.replace(/\D/g, "").length < 10 || (active === "MOBILE" && cool > 0)}>
+        {busy === "send" && active !== "EMAIL" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />} Verify Mobile Number
       </Button>
-      {otpBox("EMAIL")}
+      {otpBox("MOBILE")}
 
       <p className="text-xs text-muted-foreground text-center mt-4">At least one contact method must be verified.</p>
     </Card>

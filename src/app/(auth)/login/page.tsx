@@ -66,7 +66,7 @@ function LoginInner() {
           </div>
           <div>
             <CardTitle className="text-2xl">Welcome back</CardTitle>
-            <CardDescription className="mt-1">
+            <CardDescription>
               ALC center and admin sign in.
             </CardDescription>
           </div>
