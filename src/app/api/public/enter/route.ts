@@ -69,9 +69,14 @@ export const POST = handleRoute(async (req: Request) => {
   if (!vContact || !valid || !verifyProof(vType, vContact, proof) || !(await ContactVerification.exists({ type: vType, contact: vContact, verifiedAt: { $ne: null } }))) {
     return fail("Please verify your mobile number or email address first.", 403);
   }
-  // Only keep the other contact if it is verified too.
-  if (vType === "EMAIL") mobile = null;
-  else email = null;
+  // Both contacts are COLLECTED; only one needs to be verified. The other one is stored
+  // as given (unverified) but must at least be well-formed and present.
+  if (!email || !isValidEmail(email)) {
+    return fail("Please enter a valid email address.", 422, { issues: { email: "Please enter a valid email address." } });
+  }
+  if (!mobile || !isValidMobile(mobile)) {
+    return fail("Please enter a valid 10-digit mobile number.", 422, { issues: { mobile: "Please enter a valid 10-digit mobile number." } });
+  }
 
   // 1) Exam code → center
   const center = await ALCCenter.findOne({ code: normalizeExamCode(d.examCode), isActive: true });
@@ -89,10 +94,17 @@ export const POST = handleRoute(async (req: Request) => {
   }
 
   // 3) Find existing student (same mobile / email) or create one.
-  const or: Record<string, string>[] = [];
-  if (mobile) or.push({ mobile });
-  if (email) or.push({ email });
-  let user = await User.findOne({ $or: or });
+  // Look the student up ONLY by the VERIFIED contact; the unverified one must never be able to
+  // attach someone to another person's account.
+  let user = await User.findOne(vType === "EMAIL" ? { email } : { mobile });
+  // The unverified contact is only saved if no other account already owns it.
+  const otherType = vType === "EMAIL" ? "mobile" : "email";
+  const otherValue = vType === "EMAIL" ? mobile : email;
+  const otherTaken = !!(await User.exists({ [otherType]: otherValue, ...(user ? { _id: { $ne: user._id } } : {}) }));
+  if (otherTaken) {
+    if (vType === "EMAIL") mobile = null;
+    else email = null;
+  }
   if (user && user.role !== "STUDENT") {
     return fail("This contact is already registered with another account type.", 409);
   }
@@ -162,9 +174,13 @@ export const POST = handleRoute(async (req: Request) => {
       role: "STUDENT",
       image: photo, // replaced by the live selfie when the exam starts
     });
-  } else if (!user.image && photo) {
-    user.image = photo;
-    await user.save();
+  } else {
+    let dirty = false;
+    if (!user.image && photo) { user.image = photo; dirty = true; }
+    // Fill in the contact the student did not verify, if the account does not have it yet.
+    if (!user.email && email) { user.email = email; dirty = true; }
+    if (!user.mobile && mobile) { user.mobile = mobile; dirty = true; }
+    if (dirty) await user.save();
   }
 
   await StudentProfile.findOneAndUpdate(

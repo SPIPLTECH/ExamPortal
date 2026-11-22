@@ -37,6 +37,8 @@ export default function StudentEntryPage() {
   const [loading, setLoading] = useState(false);
   const [choiceFor, setChoiceFor] = useState<string | null>(null);
   const [verified, setVerified] = useState<Verified | null>(null);
+  const [email, setEmail] = useState("");
+  const [mobile, setMobile] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [form, setForm] = useState({
     examCode: "", name: "", class: "", stream: "", schoolName: "",
@@ -57,7 +59,9 @@ export default function StudentEntryPage() {
       fd.set("name", form.name);
       fd.set("class", form.class);
       if (showStream) fd.set("stream", form.stream);
-      fd.set(verified!.type === "MOBILE" ? "mobile" : "email", verified!.value);
+      // Both contacts are collected; only the verified one is proven by OTP.
+      fd.set("email", email.trim());
+      fd.set("mobile", mobile.trim());
       fd.set("verifiedType", verified!.type);
       fd.set("verifyProof", verified!.proof);
       fd.set("schoolName", form.schoolName);
@@ -101,6 +105,8 @@ export default function StudentEntryPage() {
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!verified) return toast.error("Verify your email or mobile number first");
+    if (!email.includes("@")) return toast.error("Please enter your email address");
+    if (mobile.replace(/\D/g, "").length < 10) return toast.error("Please enter your 10-digit mobile number");
     if (!form.class) return toast.error("Please select your class");
     if (showMscit && !form.mscit) return toast.error("Please tell us if you have completed MS-CIT");
     if (!photo) return toast.error("Please upload your photo");
@@ -140,7 +146,7 @@ export default function StudentEntryPage() {
               <IconInput icon={KeyRound} value={form.examCode} onChange={(v) => set("examCode", v.toUpperCase())} placeholder="Enter the code from your ALC center" mono required />
             </Card>
 
-            <VerifyContact verified={verified} onVerified={setVerified} />
+            <VerifyContact verified={verified} onVerified={setVerified} email={email} setEmail={setEmail} mobile={mobile} setMobile={setMobile} />
 
             <Card title="Student details" icon={UserRound}>
               <div className="grid sm:grid-cols-2 gap-4">
@@ -226,10 +232,11 @@ export default function StudentEntryPage() {
   );
 }
 
-/** Verify ONE of email / mobile. Once one is verified the other is not asked for. */
-function VerifyContact({ verified, onVerified }: { verified: Verified | null; onVerified: (v: Verified | null) => void }) {
-  const [email, setEmail] = useState("");
-  const [mobile, setMobile] = useState("");
+/** Collect BOTH email and mobile; verifying either ONE by OTP is enough. */
+function VerifyContact({ verified, onVerified, email, setEmail, mobile, setMobile }: {
+  verified: Verified | null; onVerified: (v: Verified | null) => void;
+  email: string; setEmail: (v: string) => void; mobile: string; setMobile: (v: string) => void;
+}) {
   const [active, setActive] = useState<VType | null>(null); // which channel has an OTP pending
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState<"send" | "confirm" | null>(null);
@@ -292,11 +299,23 @@ function VerifyContact({ verified, onVerified }: { verified: Verified | null; on
           <BadgeCheck className="h-6 w-6 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="font-medium flex items-center gap-1.5"><Icon className="h-4 w-4" /> <span className="truncate">{verified.value}</span></p>
-            <p className="text-sm">{verified.already ? "Already verified" : "Verified"} — no need to verify the other one.</p>
+            <p className="text-sm">{verified.already ? "Already verified" : "Verified"} — verifying the other one is not required.</p>
           </div>
           <Button type="button" variant="ghost" size="sm" onClick={() => { onVerified(null); setOtp(""); }}>
             <Pencil className="h-4 w-4" /> Change
           </Button>
+        </div>
+        <div className="mt-4">
+          {verified.type === "EMAIL" ? (
+            <Field label="Mobile Number" required>
+              <IconInput icon={Phone} type="tel" value={mobile} onChange={setMobile} placeholder="Enter 10-digit mobile number" />
+            </Field>
+          ) : (
+            <Field label="Email Address" required>
+              <IconInput icon={Mail} type="email" value={email} onChange={setEmail} placeholder="Enter email address" />
+            </Field>
+          )}
+          <p className="text-xs text-muted-foreground mt-1">We need both on record. This one does not need to be verified.</p>
         </div>
       </Card>
     );
@@ -320,7 +339,7 @@ function VerifyContact({ verified, onVerified }: { verified: Verified | null; on
 
   return (
     <Card title="Verify your contact" icon={BadgeCheck}>
-      <p className="text-sm text-muted-foreground mb-4">Verify your email address <b>or</b> mobile number to continue. You only need to verify one.</p>
+      <p className="text-sm text-muted-foreground mb-4">Enter your email address <b>and</b> mobile number, then verify <b>either one</b> with an OTP to continue.</p>
 
       <Field label="Email Address">
         <IconInput icon={Mail} type="email" value={email} onChange={(v) => { setEmail(v); if (active === "EMAIL") setActive(null); }} placeholder="Enter email address" />
@@ -342,7 +361,7 @@ function VerifyContact({ verified, onVerified }: { verified: Verified | null; on
       </Button>
       {otpBox("MOBILE")}
 
-      <p className="text-xs text-muted-foreground text-center mt-4">At least one contact method must be verified.</p>
+      <p className="text-xs text-muted-foreground text-center mt-4">Both are required; verifying one of them is enough.</p>
     </Card>
   );
 }
