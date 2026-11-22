@@ -56,7 +56,23 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     return fail("The exam window has closed", 403);
   }
 
-  const questions = await freezeQuestionSet(test);
+  // Language: multi-language tests make the student choose BEFORE the paper is built.
+  const offered = test.languages ?? [];
+  let language: string | null = null;
+  if (offered.length > 0) {
+    const body = (await req.json().catch(() => ({}))) as { language?: string };
+    language = offered.length === 1 ? offered[0]! : body.language ?? null;
+    if (!language || !(offered as string[]).includes(language)) {
+      return fail("Please choose a language for the exam", 400);
+    }
+  }
+
+  let questions;
+  try {
+    questions = await freezeQuestionSet(test, { language, stream: ctx.profile.stream ?? null });
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : "Could not build your question paper", 422);
+  }
   if (questions.length === 0) return fail("No questions available for this exam", 422);
 
   const now = new Date();
@@ -83,6 +99,7 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     startedAt: now,
     deadlineAt,
     durationMinutes: test.duration,
+    language,
   });
 
   await audit({
@@ -91,7 +108,7 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     action: "EXAM_STARTED",
     entityType: "ExamAttempt",
     entityId: attempt._id.toString(),
-    metadata: { test: testId, questions: questions.length },
+    metadata: { test: testId, questions: questions.length, language },
     ip: clientIp(req),
   });
 

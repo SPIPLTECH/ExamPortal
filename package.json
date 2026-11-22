@@ -7,7 +7,9 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "seed:exams": "tsx scripts/seed-exams.ts",
+    "seed:exams:dry": "tsx scripts/seed-exams.ts --dry-run"
   },
   "dependencies": {
     "@hookform/resolvers": "3.9.1",

@@ -1,42 +1,49 @@
 /**
- * SMS via APITxT (https://apitxt.com).
+ * SMS OTP via APITxT (https://apitxt.com).
  *
  * .env:
- *   API_TXT=<full SMS-send endpoint URL from your APITxT dashboard/docs>
- *   APITXT_AUTH_KEY=<auth key>
- *   APITXT_SENDER_ID=<DLT sender/header id>
- *   APITXT_TEMPLATE_ID=<DLT template id>      (optional)
- *   APITXT_ENTITY_ID=<DLT principal entity id> (optional)
- *   APITXT_METHOD=GET|POST                     (default GET)
+ *   API_TXT=<your APITxT auth key>      ← the KEY itself, not a URL
  *
- * ⚠ APITxT's public docs were not accessible when this was written, so the request
- * shape below (authkey/mobile/sender/message/…) is the common Indian-gateway layout.
- * If APITxT uses different parameter names, change ONLY `buildParams()` below.
+ * APITxT sends the OTP through the template configured in your APITxT account
+ * (it injects the `otp` we pass into the template's {otp} placeholder), so we
+ * pull the 4–8 digit code out of the message our routes build.
  */
+const BASE = "https://apitxt.com/api";
+
 export function smsConfigured(): boolean {
-  return !!(process.env.API_TXT && process.env.APITXT_AUTH_KEY && process.env.APITXT_SENDER_ID);
+  return !!process.env.API_TXT;
 }
 
-function buildParams(mobile10: string, message: string): Record<string, string> {
-  const p: Record<string, string> = {
-    authkey: process.env.APITXT_AUTH_KEY!,
-    mobile: `91${mobile10}`,
-    sender: process.env.APITXT_SENDER_ID!,
-    message,
-  };
-  if (process.env.APITXT_TEMPLATE_ID) p.template_id = process.env.APITXT_TEMPLATE_ID;
-  if (process.env.APITXT_ENTITY_ID) p.entity_id = process.env.APITXT_ENTITY_ID;
-  return p;
+/** 10-digit Indian number → 91XXXXXXXXXX (other lengths are passed through). */
+function toFullNumber(phone: string, country = "91"): string {
+  const digits = String(phone).replace(/\D/g, "");
+  return digits.length === 10 ? `${country}${digits}` : digits;
 }
 
 export async function sendSms(mobile10: string, message: string): Promise<void> {
-  const url = process.env.API_TXT!;
-  const params = buildParams(mobile10, message);
-  const post = (process.env.APITXT_METHOD || "GET").toUpperCase() === "POST";
-  const res = post
-    ? await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params) })
-    : await fetch(`${url}${url.includes("?") ? "&" : "?"}${new URLSearchParams(params)}`);
-  const body = await res.text();
-  if (!res.ok) throw new Error(`SMS gateway error ${res.status}: ${body.slice(0, 200)}`);
-  if (process.env.NODE_ENV !== "production") console.log("[sms] gateway response:", body.slice(0, 200));
+  const authkey = process.env.API_TXT;
+  if (!authkey) throw new Error("API_TXT is missing in .env");
+
+  const otp = String(message).match(/\d{4,8}/)?.[0];
+  if (!otp) throw new Error("Could not find the OTP digits in the SMS message");
+
+  const params = new URLSearchParams({
+    authkey,
+    mobile: toFullNumber(mobile10),
+    otp,
+    channel: "sms",
+  });
+
+  const res = await fetch(`${BASE}/sendOTP?${params.toString()}`);
+  const text = await res.text();
+  let data: { status?: string; message?: string } = {};
+  try {
+    data = JSON.parse(text);
+  } catch {
+    /* non-JSON response handled below */
+  }
+  if (!res.ok || data.status !== "success") {
+    throw new Error(data.message || `APITxT error ${res.status}: ${text.slice(0, 200)}`);
+  }
+  if (process.env.NODE_ENV !== "production") console.log("[sms] APITxT:", text.slice(0, 200));
 }

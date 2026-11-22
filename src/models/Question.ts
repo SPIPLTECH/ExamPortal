@@ -6,6 +6,8 @@ import {
   STREAMS,
   type Category,
   type Difficulty,
+  LANGUAGES,
+  type Language,
   type OptionKey,
   type Stream,
 } from "@/lib/constants";
@@ -32,6 +34,15 @@ export interface IQuestion {
   stream?: Stream | null;
   explanation?: string | null;
   imageUrl?: string | null;
+  /** Language of the question text ("en" | "mr"). Null = language-neutral (legacy). */
+  language?: Language | null;
+  /** Subject within a category, e.g. "Maths", "Science", "Physics", "Economics". */
+  subject?: string | null;
+  chapter?: string | null;
+  /** Streams that may be served this question (11/12 syllabus). Empty = every stream. */
+  streams?: Stream[];
+  /** Stable import key (idempotent re-seeding). */
+  sourceKey?: string | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -67,6 +78,11 @@ const QuestionSchema = new Schema<IQuestion>(
     stream: { type: String, enum: STREAMS, default: null, index: true },
     explanation: { type: String, trim: true, maxlength: 5000, default: null },
     imageUrl: { type: String, default: null, maxlength: 2000 },
+    language: { type: String, enum: LANGUAGES, default: null, index: true },
+    subject: { type: String, trim: true, maxlength: 120, default: null },
+    chapter: { type: String, trim: true, maxlength: 300, default: null },
+    streams: { type: [String], enum: STREAMS, default: [] },
+    sourceKey: { type: String, default: null },
     isActive: { type: Boolean, default: true, index: true },
   },
   { timestamps: true }

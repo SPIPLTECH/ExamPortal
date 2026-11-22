@@ -4,15 +4,67 @@ import { Question } from "@/models/Question";
 import { ExamAttempt, type IExamAttempt } from "@/models/ExamAttempt";
 import { ExamResponse } from "@/models/ExamResponse";
 import { ExamResult } from "@/models/ExamResult";
-import { buildFrozenFromPool, toClientQuestion } from "./exam-selection";
+import { buildFrozenFromPool, buildFrozenFromPicks, shuffle, toClientQuestion } from "./exam-selection";
+import type { IBlueprintEntry } from "@/models/Test";
+
+/** Draw `entry.count` random questions for one blueprint slice. */
+async function drawEntry(
+  test: ITest,
+  entry: IBlueprintEntry,
+  language: string | null
+) {
+  const build = (lang: string | null) => {
+    const q: Record<string, unknown> = {
+      test: test._id,
+      isActive: true,
+      category: entry.category,
+    };
+    if (lang) q.language = lang;
+    if (entry.subjects?.length) q.subject = { $in: entry.subjects };
+    return q;
+  };
+
+  let pool = await Question.find(build(language)).lean();
+  if (pool.length < entry.count && entry.fallbackLanguage && entry.fallbackLanguage !== language) {
+    pool = await Question.find(build(entry.fallbackLanguage)).lean();
+  }
+  if (pool.length < entry.count) {
+    throw new Error(
+      `Not enough questions for "${entry.label}": need ${entry.count}, have ${pool.length}.`
+    );
+  }
+  return shuffle(pool).slice(0, entry.count);
+}
 
 /**
  * Build the frozen question set for a brand-new attempt from the TEST'S OWN
  * question pool. Each student gets a different RANDOM subset of `totalQuestions`
  * (e.g. 25 of 100) with shuffled options. Throws if the pool is too small.
  */
-export async function freezeQuestionSet(test: ITest): Promise<IExamAttempt["questions"]> {
+export async function freezeQuestionSet(
+  test: ITest,
+  opts: { language?: string | null; stream?: string | null } = {}
+): Promise<IExamAttempt["questions"]> {
   await connectDB();
+  const marking = {
+    marksPerQuestion: test.marksPerQuestion,
+    negativeMarks: test.negativeMarking?.value ?? 0,
+  };
+
+  // Blueprint mode: exact per-subject counts in the student's language/stream.
+  if (test.blueprint && test.blueprint.length > 0) {
+    const language = opts.language ?? test.languages?.[0] ?? null;
+    const picks: Awaited<ReturnType<typeof drawEntry>>[] = [];
+    for (const entry of test.blueprint) {
+      if (entry.streams?.length) {
+        if (!opts.stream) throw new Error("Your profile has no stream; contact your center.");
+        if (!entry.streams.includes(opts.stream)) continue; // slice belongs to another stream
+      }
+      picks.push(await drawEntry(test, entry, language));
+    }
+    return buildFrozenFromPicks(picks, marking);
+  }
+
   const pool = await Question.find({ test: test._id, isActive: true }).lean();
   const need = test.totalQuestions;
   if (pool.length < need) {
@@ -20,10 +72,7 @@ export async function freezeQuestionSet(test: ITest): Promise<IExamAttempt["ques
       `This test has only ${pool.length} question(s); ${need} are required per student. Add more questions.`
     );
   }
-  return buildFrozenFromPool(pool, need, {
-    marksPerQuestion: test.marksPerQuestion,
-    negativeMarks: test.negativeMarking?.value ?? 0,
-  });
+  return buildFrozenFromPool(pool, need, marking);
 }
 
 /** Client-safe projection of an attempt (no correct answers). */

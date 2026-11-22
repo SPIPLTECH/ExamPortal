@@ -11,12 +11,32 @@ import {
   type ReviewStatus,
   type Stream,
   type TestStatus,
+  LANGUAGES,
+  type Language,
 } from "@/lib/constants";
 
 export interface ICategoryRule {
   category: string; // SYLLABUS | AI_LITERACY | IT_LITERACY
   min: number;
   max: number;
+}
+
+/**
+ * One slice of the per-student paper: "take `count` random questions of
+ * `category` (optionally restricted to `subjects`) in the student's language".
+ * A paper is the sum of its blueprint entries (e.g. Class 8: Maths 7, Science 6,
+ * AI 6, IT 6).
+ */
+export interface IBlueprintEntry {
+  label: string;
+  category: string; // SYLLABUS | AI_LITERACY | IT_LITERACY
+  /** Restrict to these subjects (empty = any subject in the category). */
+  subjects: string[];
+  count: number;
+  /** Only applies to students of these streams (11/12 syllabus). Empty = every student. */
+  streams?: string[];
+  /** If this language has no questions for the entry, use this language instead. */
+  fallbackLanguage?: Language | null;
 }
 
 export interface ITest {
@@ -43,6 +63,10 @@ export interface ITest {
     requireFullscreen: boolean;
     maxTabSwitches: number;
   };
+  /** Languages offered; the student chooses one before the attempt is created. */
+  languages: Language[];
+  /** Exact per-subject/category paper layout. When empty the legacy random-from-pool mode is used. */
+  blueprint: IBlueprintEntry[];
   /** Category distribution ranges; must be satisfiable to exactly totalQuestions. */
   distribution: ICategoryRule[];
   // Review/approval workflow
@@ -76,6 +100,18 @@ const CategoryRuleSchema = new Schema<ICategoryRule>(
   { _id: false }
 );
 
+const BlueprintSchema = new Schema<IBlueprintEntry>(
+  {
+    label: { type: String, required: true },
+    category: { type: String, required: true },
+    subjects: { type: [String], default: [] },
+    count: { type: Number, required: true, min: 1 },
+    streams: { type: [String], default: [] },
+    fallbackLanguage: { type: String, enum: [...LANGUAGES, null], default: null },
+  },
+  { _id: false }
+);
+
 const TestSchema = new Schema<ITest>(
   {
     center: { type: Schema.Types.ObjectId, ref: "ALCCenter", required: true, index: true },
@@ -103,6 +139,8 @@ const TestSchema = new Schema<ITest>(
       requireFullscreen: { type: Boolean, default: true },
       maxTabSwitches: { type: Number, default: 3, min: 0 },
     },
+    languages: { type: [String], enum: LANGUAGES, default: [] },
+    blueprint: { type: [BlueprintSchema], default: [] },
     distribution: { type: [CategoryRuleSchema], default: [] },
     reviewStatus: { type: String, enum: REVIEW_STATUSES, default: "DRAFT", index: true },
     submittedAt: { type: Date, default: null },

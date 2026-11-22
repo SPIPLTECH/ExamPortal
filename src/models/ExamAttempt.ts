@@ -46,6 +46,8 @@ export interface IExamAttempt {
   /** Verified live selfie taken before the exam (shown in the exam room, to the center and admin). */
   selfieUrl?: string | null;
   durationMinutes: number;
+  /** Language the student chose for this attempt. */
+  language?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -89,6 +91,7 @@ const ExamAttemptSchema = new Schema<IExamAttempt>(
     terminationReason: { type: String, default: null },
     selfieUrl: { type: String, default: null },
     durationMinutes: { type: Number, required: true },
+    language: { type: String, default: null },
   },
   { timestamps: true }
 );

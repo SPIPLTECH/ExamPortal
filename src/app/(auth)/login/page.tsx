@@ -30,11 +30,17 @@ function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
   const [loading, setLoading] = useState(false);
-  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
+  const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const identifier = email.trim() || mobile.trim();
+    if (!identifier) {
+      toast.error("Enter your email address or mobile number");
+      return;
+    }
     setLoading(true);
     const res = await signIn("credentials", {
       identifier,
@@ -68,14 +74,28 @@ function LoginInner() {
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="identifier">Email or Mobile</Label>
+              <Label htmlFor="email">Email Address</Label>
               <Input
-                id="identifier"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 autoComplete="username"
-                required
+              />
+            </div>
+            <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
+              <span className="h-px flex-1 bg-border" /> OR <span className="h-px flex-1 bg-border" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mobile">Mobile Number</Label>
+              <Input
+                id="mobile"
+                type="tel"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+                placeholder="10-digit mobile number"
+                autoComplete="tel"
               />
             </div>
             <div className="space-y-2">

@@ -162,14 +162,26 @@ export function ExamRoom({ testId }: { testId: string }) {
     }
   }, [proctoringEnabled, proctorReady]);
 
-  // Start / resume.
-  useEffect(() => {
-    (async () => {
-      const res = await fetch(`/api/exam/${testId}/start`, { method: "POST" });
+  // Start / resume. A multi-language test first asks the student which language
+  // to use; the question paper is only built (and frozen) after that choice.
+  const [langChoices, setLangChoices] = useState<{ name: string; languages: string[] } | null>(null);
+  const [startingLang, setStartingLang] = useState<string | null>(null);
+
+  const startExam = useCallback(
+    async (language?: string) => {
+      const res = await fetch(`/api/exam/${testId}/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(language ? { language } : {}),
+      });
       const json = await res.json();
       if (!res.ok) {
         toast.error(json.error || "Could not start exam");
         const alreadyAttempted = /already attempted|time is up/i.test(json.error ?? "");
+        if (language) {
+          setStartingLang(null); // stay on the picker so the student can retry
+          if (!alreadyAttempted) return;
+        }
         router.replace(alreadyAttempted ? "/exam/done" : "/");
         return;
       }
@@ -178,6 +190,7 @@ export function ExamRoom({ testId }: { testId: string }) {
         router.replace(`/exam/done`);
         return;
       }
+      setLangChoices(null);
       setState(s);
       const a: Record<string, string | null> = {};
       const m: Record<string, boolean> = {};
@@ -192,8 +205,27 @@ export function ExamRoom({ testId }: { testId: string }) {
       endLocalRef.current = new Date(s.deadlineAt).getTime() + skew;
       setRemaining(Math.max(0, Math.floor((endLocalRef.current - Date.now()) / 1000)));
       setLoading(false);
+    },
+    [testId, router]
+  );
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/exam/${testId}/meta`);
+        const json = await res.json();
+        const meta = res.ok ? (json.data as { name: string; languages: string[]; hasAttempt: boolean }) : null;
+        if (meta && !meta.hasAttempt && meta.languages.length > 1) {
+          setLangChoices({ name: meta.name, languages: meta.languages });
+          setLoading(false);
+          return;
+        }
+      } catch {
+        /* fall through to a normal start */
+      }
+      await startExam();
     })();
-  }, [testId, router]);
+  }, [testId, startExam]);
 
   const doSubmit = useCallback(
     async (auto = false) => {
@@ -297,6 +329,39 @@ export function ExamRoom({ testId }: { testId: string }) {
   function next() {
     if (q) saveAnswer(q.question, answers[q.question] ?? null, !!marks[q.question]);
     setIdx((i) => Math.min((state?.questions.length ?? 1) - 1, i + 1));
+  }
+
+  if (langChoices && !state) {
+    const label: Record<string, string> = { en: "English", mr: "मराठी (Marathi)" };
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="w-full max-w-md rounded-xl border bg-white p-8 shadow-sm text-center space-y-5">
+          <h1 className="text-xl font-semibold">{langChoices.name}</h1>
+          <p className="text-sm text-muted-foreground">
+            Choose the language for your question paper. You cannot change it once the exam starts.
+            <br />
+            परीक्षेसाठी भाषा निवडा. परीक्षा सुरू झाल्यावर भाषा बदलता येणार नाही.
+          </p>
+          <div className="space-y-3">
+            {langChoices.languages.map((l) => (
+              <Button
+                key={l}
+                size="lg"
+                className="w-full"
+                disabled={startingLang !== null}
+                onClick={() => {
+                  setStartingLang(l);
+                  void startExam(l);
+                }}
+              >
+                {startingLang === l && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {label[l] ?? l}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (loading || !state || !q) {

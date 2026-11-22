@@ -13,6 +13,7 @@ import { connectAndSyncIndexes } from "../src/lib/db";
 import { User } from "../src/models/User";
 import { ALCCenter } from "../src/models/ALCCenter";
 import { TermsVersion } from "../src/models/TermsVersion";
+import { seedExams } from "./seed-exams";
 
 async function main() {
   await connectAndSyncIndexes();
@@ -51,7 +52,11 @@ async function main() {
     console.log("✓ Terms v1 created (active)");
   }
 
-  // Optional demo center
+  // Soft Polynomials ALC center: Class 5–12 tests with all questions + images.
+  // Skip with SEED_EXAMS=false.
+  if (process.env.SEED_EXAMS !== "false") {
+    await seedExams();
+  }
 
 
   console.log("Seed complete.");

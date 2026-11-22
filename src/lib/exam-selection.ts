@@ -86,6 +86,18 @@ export function buildFrozenFromPool(
 }
 
 /**
+ * Blueprint mode: `picks` holds, per blueprint entry, the random questions
+ * already drawn for that slice. Everything is frozen together, then the whole
+ * paper order is shuffled so subjects are interleaved.
+ */
+export function buildFrozenFromPicks(
+  picks: QuestionLike[][],
+  opts: { marksPerQuestion: number; negativeMarks: number }
+): IFrozenQuestion[] {
+  return shuffle(picks.flat()).map((q, idx) => freezeOne(q, idx + 1, opts));
+}
+
+/**
  * Project a frozen question for the STUDENT: strips `correctOption`. Always use
  * this before sending attempt questions to the client.
  */

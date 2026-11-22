@@ -77,6 +77,14 @@ export const STUDENT_CENTER_STATUSES = [
 ] as const;
 export type StudentCenterStatus = (typeof STUDENT_CENTER_STATUSES)[number];
 
+/** Languages a test can be offered in. The student picks one before starting. */
+export const LANGUAGES = ["en", "mr"] as const;
+export type Language = (typeof LANGUAGES)[number];
+export const LANGUAGE_LABEL: Record<Language, string> = {
+  en: "English",
+  mr: "मराठी (Marathi)",
+};
+
 export const EXACT_QUESTIONS_PER_ATTEMPT = 25;
 
 /**
