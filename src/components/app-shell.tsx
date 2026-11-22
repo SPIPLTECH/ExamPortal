@@ -60,6 +60,7 @@ const NAV: Record<string, NavItem[]> = {
     { href: "/alc/questions", label: "Questions", icon: BookOpen },
     { href: "/alc/import", label: "Import", icon: FileSpreadsheet },
     { href: "/alc/students", label: "Students", icon: Users },
+    { href: "/alc/enquiries", label: "MS-CIT", icon: Headphones },
     { href: "/alc/schedule", label: "Scheduling", icon: CalendarClock },
     { href: "/alc/results", label: "Results", icon: BarChart3 },
   ],
@@ -73,7 +74,7 @@ const NAV: Record<string, NavItem[]> = {
 };
 
 const ROLE_LABEL: Record<string, string> = {
-  SUPER_ADMIN: "Super Admin",
+  SUPER_ADMIN: "DCU Admin",
   ALC_CENTER: "ALC Center",
   STUDENT: "Student",
 };

@@ -7,6 +7,7 @@ import { freezeQuestionSet, projectAttempt, finalizeAttempt, isExpired } from "@
 import { ok, fail, handleRoute } from "@/lib/api";
 import { audit, clientIp } from "@/lib/audit";
 import { User } from "@/models/User";
+import { ALCCenter } from "@/models/ALCCenter";
 
 /** Start a new attempt or resume the existing one. Idempotent: a refresh never
  *  regenerates the question set. */
@@ -17,12 +18,14 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
 
   await connectDB();
   const me = await User.findById(ctx.user.id).select("name image").lean();
+  const test = await Test.findById(testId).lean<ITest>();
+  if (!test) return fail("Test not found", 404);
+  const centerDoc = await ALCCenter.findById(test.center).select("name").lean();
   const withStudent = <T extends object>(o: T) => ({
     ...o,
     student: { name: me?.name ?? "", imageUrl: me?.image?.url ?? null },
+    centerName: centerDoc?.name ?? null,
   });
-  const test = await Test.findById(testId).lean<ITest>();
-  if (!test) return fail("Test not found", 404);
 
   const enrollment = await TestEnrollment.findOne({
     test: testId,
@@ -62,8 +65,11 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   const deadlineAt = new Date(Math.min(now.getTime() + durationMs, windowEnd));
 
   const proctoringMode =
+    // MANDATORY / DISABLED come from the ALC; OPTIONAL uses the student's choice (default: proctored).
     test.proctoring.mode === "OPTIONAL"
-      ? (enrollment.proctoringChoice ?? "DISABLED")
+      ? enrollment.proctoringChoice === "DISABLED"
+        ? "DISABLED"
+        : "MANDATORY"
       : test.proctoring.mode;
 
   const attempt = await ExamAttempt.create({

@@ -19,13 +19,15 @@ export const GET = handleRoute(async (req: Request) => {
   // Student-wise drill-down for one test.
   if (testId) {
     const rows = await ExamResult.find({ center: centerId, test: testId })
-      .populate<{ student: { name: string; email?: string } }>("student", "name email")
+      .populate<{ student: { name: string; email?: string; mobile?: string; image?: { url?: string } } }>("student", "name email mobile image")
       .sort({ percentage: -1 })
       .lean();
     return ok({
       students: rows.map((r) => ({
         name: (r.student as { name?: string } | null)?.name ?? "—",
         email: (r.student as { email?: string } | null)?.email ?? null,
+        mobile: (r.student as { mobile?: string } | null)?.mobile ?? null,
+        image: (r.student as { image?: { url?: string } } | null)?.image?.url ?? null,
         score: r.score,
         totalMarks: r.totalMarks,
         percentage: r.percentage,

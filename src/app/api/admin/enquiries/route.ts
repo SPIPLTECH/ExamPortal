@@ -4,8 +4,8 @@ import { requireSuperAdmin } from "@/lib/auth-helpers";
 import { ok, handleRoute } from "@/lib/api";
 
 function toCsv(rows: Record<string, unknown>[]): string {
-  if (rows.length === 0) return "name,contact,class,school,status,date\n";
-  const headers = ["name", "contact", "class", "school", "status", "date"];
+  if (rows.length === 0) return "name,contact,class,school,center,status,date\n";
+  const headers = ["name", "contact", "class", "school", "center", "status", "date"];
   const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const lines = rows.map((r) => headers.map((h) => esc(r[h])).join(","));
   return [headers.join(","), ...lines].join("\n");
@@ -23,7 +23,7 @@ export const GET = handleRoute(async (req: Request) => {
   if (status) filter.status = status;
 
   await connectDB();
-  const items = await MSCITEnquiry.find(filter).sort({ createdAt: -1 }).lean();
+  const items = await MSCITEnquiry.find(filter).populate<{ center: { name: string; code: string } | null }>("center", "name code").sort({ createdAt: -1 }).lean();
 
   if (format === "csv") {
     const csv = toCsv(
@@ -32,6 +32,7 @@ export const GET = handleRoute(async (req: Request) => {
         contact: e.contact,
         class: e.class,
         school: e.school,
+        center: (e.center as { name?: string } | null)?.name ?? "",
         status: e.status,
         date: e.createdAt?.toISOString?.() ?? "",
       }))
@@ -51,6 +52,7 @@ export const GET = handleRoute(async (req: Request) => {
       contact: e.contact,
       class: e.class,
       school: e.school,
+      center: (e.center as { name?: string } | null)?.name ?? null,
       interested: e.interested,
       status: e.status,
       followUps: e.followUps,

@@ -6,6 +6,7 @@ import { User } from "@/models/User";
 import { loginSchema } from "./validations";
 import { rateLimit } from "./rate-limit";
 import { authConfig } from "./auth.config";
+import { verifyEntryToken } from "./entry-token";
 
 const MAX_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
@@ -61,6 +62,31 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           role: user.role,
           image: user.image?.url ?? undefined,
           centerId: user.center ? user.center.toString() : undefined,
+        } as unknown as import("next-auth").User;
+      },
+    }),
+      // Passwordless student entry: only valid with a fresh server-signed token
+    // issued by /api/public/enter right after registration.
+    Credentials({
+      id: "exam-entry",
+      name: "exam-entry",
+      credentials: {
+        userId: { type: "text" },
+        token: { type: "text" },
+      },
+      async authorize(credentials) {
+        const userId = String(credentials?.userId ?? "");
+        const token = String(credentials?.token ?? "");
+        if (!/^[a-f\d]{24}$/i.test(userId) || !verifyEntryToken(userId, token)) return null;
+        await connectDB();
+        const user = await User.findById(userId);
+        if (!user || !user.isActive || user.role !== "STUDENT") return null;
+        return {
+          id: user._id.toString(),
+          name: user.name,
+          email: user.email ?? undefined,
+          role: user.role,
+          image: user.image?.url ?? undefined,
         } as unknown as import("next-auth").User;
       },
     }),

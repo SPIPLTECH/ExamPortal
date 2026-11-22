@@ -13,12 +13,12 @@ const ROLE_ROUTES: { prefix: string; roles: string[] }[] = [
   { prefix: "/api/exam", roles: ["STUDENT"] },
 ];
 
-const PUBLIC_PATHS = ["/login", "/register", "/terms", "/api/auth", "/api/public"];
+const PUBLIC_PATHS = ["/login", "/terms", "/api/auth", "/api/public"];
 
 function homeForRole(role?: string): string {
   if (role === "SUPER_ADMIN") return "/admin";
   if (role === "ALC_CENTER") return "/alc";
-  if (role === "STUDENT") return "/student";
+  if (role === "STUDENT") return "/exam/done";
   return "/login";
 }
 
@@ -39,16 +39,20 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const user = req.auth?.user as { role?: string } | undefined;
 
+  // Home is the public student entry form. Staff go straight to their dashboards.
   if (pathname === "/") {
-    return user
+    return user && user.role !== "STUDENT"
       ? NextResponse.redirect(new URL(homeForRole(user.role), req.url))
       : res;
   }
 
+  // Old self-registration page no longer exists.
+  if (pathname === "/register") return NextResponse.redirect(new URL("/", req.url));
+
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return res;
 
   // Authenticated users shouldn't sit on auth pages.
-  if ((pathname === "/login" || pathname === "/register") && user) {
+  if (pathname === "/login" && user && user.role !== "STUDENT") {
     return NextResponse.redirect(new URL(homeForRole(user.role), req.url));
   }
 
@@ -56,6 +60,8 @@ export default auth((req) => {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    // Students have no login: send them back to the entry form.
+    if (pathname.startsWith("/exam")) return NextResponse.redirect(new URL("/", req.url));
     const url = new URL("/login", req.url);
     url.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(url);

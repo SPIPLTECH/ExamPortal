@@ -10,6 +10,9 @@ export interface IFollowUp {
 export interface IMSCITEnquiry {
   _id: Types.ObjectId;
   student?: Types.ObjectId | null;
+  center?: Types.ObjectId | null; // ALC center of the student (also visible to admin)
+  mobile?: string | null;
+  email?: string | null;
   name: string;
   contact: string;
   class: number;
@@ -34,6 +37,9 @@ const FollowUpSchema = new Schema<IFollowUp>(
 const MSCITEnquirySchema = new Schema<IMSCITEnquiry>(
   {
     student: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
+    center: { type: Schema.Types.ObjectId, ref: "ALCCenter", default: null, index: true },
+    mobile: { type: String, default: null },
+    email: { type: String, default: null },
     name: { type: String, required: true, trim: true, maxlength: 120 },
     contact: { type: String, required: true, trim: true, maxlength: 255 },
     class: { type: Number, required: true, min: 5, max: 12 },

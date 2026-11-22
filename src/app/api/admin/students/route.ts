@@ -43,6 +43,8 @@ export const GET = handleRoute(async (req: Request) => {
         mobile: u.mobile ?? null,
         isActive: u.isActive,
         image: u.image?.url ?? null,
+        photo: p?.photo?.url ?? null,
+        mscit: p?.mscit ?? null,
         class: p?.class ?? null,
         stream: p?.stream ?? null,
         schoolName: p?.schoolName ?? null,

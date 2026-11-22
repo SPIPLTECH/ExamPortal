@@ -1,5 +1,7 @@
 "use client";
 
+import { ShieldCheck, ShieldQuestion, ShieldOff, CheckCircle2 } from "lucide-react";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -165,7 +167,7 @@ export function TestComposer({ testId }: { testId?: string }) {
         toast.error(sjson.error || "Submit failed");
         return;
       }
-      toast.success("Test submitted for approval");
+      toast.success("Test published — students can now take it with your exam code");
     } else {
       setSaving(false);
       toast.success("Test saved");
@@ -276,22 +278,34 @@ export function TestComposer({ testId }: { testId?: string }) {
       )}
 
       <Section title="Proctoring">
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Mode</Label>
-            <Select value={f.proctMode} onValueChange={(v) => set("proctMode", v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {PROCTORING_MODES.map((m) => (
-                  <SelectItem key={m} value={m}>{m[0] + m.slice(1).toLowerCase()}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {f.proctMode !== "DISABLED" && (
-            <NumField label="Max tab switches" value={f.maxTabSwitches} onChange={(v) => set("maxTabSwitches", v)} />
-          )}
+        <div className="grid sm:grid-cols-3 gap-3">
+          {([
+            { v: "MANDATORY", title: "Mandatory", desc: "Every student is proctored: live face selfie, camera, fullscreen and violation tracking.", icon: ShieldCheck, tone: "emerald" },
+            { v: "OPTIONAL", title: "Optional", desc: "Student chooses at entry whether to take the exam with or without proctoring.", icon: ShieldQuestion, tone: "amber" },
+            { v: "DISABLED", title: "No proctoring", desc: "Plain exam. No camera, no selfie, no monitoring.", icon: ShieldOff, tone: "slate" },
+          ] as const).map((m) => {
+            const active = f.proctMode === m.v;
+            return (
+              <button
+                type="button"
+                key={m.v}
+                onClick={() => set("proctMode", m.v)}
+                className={`text-left rounded-xl border-2 p-4 transition-all ${active ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:border-primary/40"}`}
+              >
+                <div className="flex items-center gap-2 font-semibold">
+                  <m.icon className={`h-5 w-5 ${active ? "text-primary" : "text-muted-foreground"}`} /> {m.title}
+                  {active && <CheckCircle2 className="h-4 w-4 text-primary ml-auto" />}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1.5">{m.desc}</p>
+              </button>
+            );
+          })}
         </div>
+        {f.proctMode !== "DISABLED" && (
+          <div className="grid sm:grid-cols-3 gap-4 pt-2">
+            <NumField label="Max warnings / tab switches" value={f.maxTabSwitches} onChange={(v) => set("maxTabSwitches", v)} />
+          </div>
+        )}
         {f.proctMode !== "DISABLED" && (
           <div className="flex gap-6 pt-2">
             <label className="flex items-center gap-2 text-sm">
@@ -316,9 +330,9 @@ export function TestComposer({ testId }: { testId?: string }) {
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               Save changes
             </Button>
-            {reviewStatus !== "SUBMITTED" && (
+            {reviewStatus !== "SUBMITTED" && reviewStatus !== "APPROVED" && (
               <Button onClick={() => save(true)} disabled={saving}>
-                Save &amp; submit for approval
+                Save &amp; publish
               </Button>
             )}
           </>

@@ -22,7 +22,7 @@ import { PreExamCheck } from "@/components/proctoring/pre-exam-check";
 import { FullscreenGate } from "@/components/proctoring/fullscreen-gate";
 import { sendProctoringEvent } from "@/lib/proctoring/service";
 import { releaseExamLock } from "@/lib/proctoring/examLock";
-import { ShieldCheck, Smartphone, UserX, Users } from "lucide-react";
+import { ShieldCheck, Smartphone, UserX, Users, Building2 } from "lucide-react";
 
 type ClientQuestion = {
   question: string;
@@ -42,6 +42,7 @@ type AttemptState = {
   durationMinutes: number;
   proctoringMode: string;
   student?: { name: string; imageUrl: string | null };
+  centerName?: string | null;
   questions: ClientQuestion[];
   responses: { question: string; selectedOption: string | null; status: RespStatus }[];
 };
@@ -83,7 +84,7 @@ export function ExamRoom({ testId }: { testId: string }) {
     setFinished(true);
     releaseExamLock();
     toast.error("Your exam was ended due to proctoring violations.");
-    router.replace("/student/history");
+    router.replace("/exam/done");
   }, [router]);
 
   // Server policy decisions from AI frames are routed into the monitor (set below).
@@ -169,12 +170,12 @@ export function ExamRoom({ testId }: { testId: string }) {
       if (!res.ok) {
         toast.error(json.error || "Could not start exam");
         const alreadyAttempted = /already attempted|time is up/i.test(json.error ?? "");
-        router.replace(alreadyAttempted ? "/student/history" : "/student/enrolled");
+        router.replace(alreadyAttempted ? "/exam/done" : "/");
         return;
       }
       const s: AttemptState = json.data;
       if (s.status !== "IN_PROGRESS") {
-        router.replace(`/student/history`);
+        router.replace(`/exam/done`);
         return;
       }
       setState(s);
@@ -211,7 +212,7 @@ export function ExamRoom({ testId }: { testId: string }) {
       endedRef.current = true; // stop proctoring side-effects (no fullscreen gate after submit)
       setFinished(true);
       releaseExamLock();
-      router.replace(`/student/history`);
+      router.replace(`/exam/done`);
     },
     [testId, router]
   );
@@ -241,7 +242,7 @@ export function ExamRoom({ testId }: { testId: string }) {
         if (res.status === 409) {
           const j = await res.json();
           toast.error(j.error || "Exam ended");
-          router.replace("/student/history");
+          router.replace("/exam/done");
         }
       } catch {
         // Network blip — keep local state; will retry on next action.
@@ -311,13 +312,24 @@ export function ExamRoom({ testId }: { testId: string }) {
     return (
       <PreExamCheck
         testName={state.testName}
+        centerName={state.centerName}
         videoRef={webcam.videoRef}
         cameraStatus={webcam.cameraStatus}
         errorMessage={webcam.errorMessage}
         onRequestCamera={webcam.requestCamera}
-        onCaptureIdentity={async () => {
-          const r = await webcam.captureAndUpload("PRE_EXAM_IDENTITY");
-          return !!r;
+        onSelfie={async (blob) => {
+          const fd = new FormData();
+          fd.set("photo", new File([blob], "selfie.jpg", { type: "image/jpeg" }));
+          const res = await fetch(`/api/exam/${testId}/proctoring/selfie`, { method: "POST", body: fd });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            toast.error(json.error || "Could not save your photo");
+            return false;
+          }
+          setState((st) => (st ? { ...st, student: { name: st.student?.name ?? "", imageUrl: json.data.url } } : st));
+          // Baseline for identity checks / evidence (best-effort: needs evidence storage).
+          void webcam.captureAndUpload("PRE_EXAM_IDENTITY");
+          return true;
         }}
         onStart={async () => {
           await monitor.requestFullscreen();
@@ -335,10 +347,24 @@ export function ExamRoom({ testId }: { testId: string }) {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Top bar */}
-      <header className="h-16 bg-white border-b flex items-center px-4 gap-3 shrink-0">
+      <header className="h-20 bg-white border-b shadow-sm flex items-center px-4 gap-4 shrink-0">
         <ProfileBadge name={state.student?.name ?? ""} imageUrl={state.student?.imageUrl ?? null} />
-        <span className="font-semibold truncate">{state.testName}</span>
-        <div className="ml-auto flex items-center gap-4">
+        <div className="min-w-0">
+          <p className="font-semibold truncate leading-tight">{state.testName}</p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <ShieldCheck className="h-3 w-3" /> {proctoringEnabled ? "Proctored exam" : "Exam in progress"}
+          </p>
+        </div>
+        <div className="ml-auto flex items-center gap-3">
+          {state.centerName && (
+            <div className="hidden md:flex items-center gap-2 rounded-lg border bg-slate-50 px-3 py-1.5 max-w-[16rem]">
+              <Building2 className="h-4 w-4 text-primary shrink-0" />
+              <div className="min-w-0 leading-tight">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">ALC Center</p>
+                <p className="text-sm font-medium truncate">{state.centerName}</p>
+              </div>
+            </div>
+          )}
           <div
             className={`flex items-center gap-2 font-mono font-semibold px-3 py-1.5 rounded-lg ${
               low ? "bg-red-100 text-red-700 animate-pulse" : "bg-slate-100 text-slate-800"
@@ -529,14 +555,14 @@ function ProfileBadge({ name, imageUrl }: { name: string; imageUrl: string | nul
         <img
           src={imageUrl}
           alt={name || "Student"}
-          className="h-10 w-10 rounded-full object-cover border-2 border-primary/30"
+          className="h-14 w-14 rounded-full object-cover border-2 border-primary/40 shadow"
         />
       ) : (
-        <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold">
+        <div className="h-14 w-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-lg font-semibold">
           {initials}
         </div>
       )}
-      {name && <span className="hidden sm:block text-sm font-medium max-w-[10rem] truncate">{name}</span>}
+      {name && <span className="hidden sm:block text-sm font-semibold max-w-[10rem] truncate">{name}</span>}
     </div>
   );
 }

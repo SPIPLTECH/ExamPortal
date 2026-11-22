@@ -15,6 +15,8 @@ type Student = {
   mobile: string | null;
   isActive: boolean;
   image: string | null;
+  photo?: string | null;
+  mscit?: { completed: boolean; percentage?: number | null; interested: boolean } | null;
   class: number | null;
   stream: string | null;
   center: { name: string; code: string } | null;
@@ -110,6 +112,10 @@ export default function StudentsPage() {
                   <UserCircle className="h-6 w-6 text-muted-foreground" />
                 )}
               </div>
+              {s.photo && s.photo !== s.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={s.photo} alt="Registration photo" title="Registration photo" className="h-9 w-9 rounded-md object-cover border shrink-0" />
+              )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-medium">{s.name}</p>
@@ -120,6 +126,11 @@ export default function StudentsPage() {
                   {s.class ? ` · Class ${s.class}${s.stream ? " " + s.stream : ""}` : ""}
                   {s.center ? ` · ${s.center.name} (${s.centerStatus})` : " · Unassigned"}
                 </p>
+                {s.mscit && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    MS-CIT: {s.mscit.completed ? `completed${s.mscit.percentage != null ? ` (${s.mscit.percentage}%)` : ""}` : s.mscit.interested ? "interested — advisor to call" : "not completed"}
+                  </p>
+                )}
               </div>
               <div className="flex gap-1 shrink-0">
                 <Button size="icon" variant="ghost" title="Reset password" onClick={() => resetPassword(s._id)}>

@@ -29,7 +29,6 @@ type Center = {
 
 const EMPTY_FORM = {
   name: "",
-  code: "",
   email: "",
   phone: "",
   city: "",
@@ -79,7 +78,7 @@ export default function CentersPage() {
       if (json.issues) toast.error(Object.values(json.issues)[0] as string);
       return;
     }
-    toast.success(`Center ${json.data.code} created`);
+    toast.success(`Center created. Exam code: ${json.data.code}`, { duration: 15000 });
     setOpen(false);
     setForm(EMPTY_FORM);
     load();
@@ -120,7 +119,9 @@ export default function CentersPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold">{c.name}</h3>
-                  <Badge variant="outline">{c.code}</Badge>
+                  <Badge variant="outline" className="font-mono tracking-wider" title="Exam code">
+                    Exam code: {c.code}
+                  </Badge>
                   <Badge className={c.isActive ? "bg-emerald-600" : "bg-slate-400"}>
                     {c.isActive ? "Active" : "Inactive"}
                   </Badge>
@@ -144,10 +145,12 @@ export default function CentersPage() {
             <DialogTitle>Create ALC Center</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <p className="text-sm rounded-md bg-muted px-3 py-2 text-muted-foreground">
+              A unique <b>Exam Code</b> is generated automatically when the center is created. Share it with the center along with the login.
+            </p>
             <p className="text-sm font-medium text-muted-foreground">Center details</p>
             <div className="grid sm:grid-cols-2 gap-3">
               <F label="Center name *"><Input value={form.name} onChange={(e) => set("name", e.target.value)} /></F>
-              <F label="Code * (invite code)"><Input value={form.code} onChange={(e) => set("code", e.target.value.toUpperCase())} /></F>
               <F label="Email"><Input value={form.email} onChange={(e) => set("email", e.target.value)} /></F>
               <F label="Phone"><Input value={form.phone} onChange={(e) => set("phone", e.target.value)} /></F>
               <F label="City"><Input value={form.city} onChange={(e) => set("city", e.target.value)} /></F>

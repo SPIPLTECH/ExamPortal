@@ -143,3 +143,23 @@ Compatible with any Node.js host. Avoid running long builds on <4 GB RAM hosts.
 - Camera access requires HTTPS (or `localhost`).
 - AI face-detection requires an external `AI_SERVICE_URL`; it is off by default.
 - The build is memory-hungry on constrained machines (see note above).
+
+## New flow (exam-code entry)
+1. Admin creates an ALC center → a unique **Exam Code** is auto-generated with the center login.
+2. ALC logs in, adds questions to a test (per class) and clicks **Publish** (no admin approval step).
+3. Student opens `/`, enters Exam Code + details + class → server picks the published test of that
+   center for that class → 25 random questions → proctored exam. No account/password.
+4. Students, attempts, results and proctoring evidence appear in the ALC and Admin panels.
+
+## Proctoring selfie
+Pre-exam selfie uses MediaPipe FaceLandmarker (loaded from jsDelivr / storage.googleapis.com at runtime).
+Photo auto-captures only when: one face in the circle, both ears visible, both eyes open, head straight,
+good light, plain background. Saved to the student's profile + attempt, shown in exam room (top-left),
+ALC students/results and admin students. Re-run `npm run seed` to rename the admin to "DCU Admin".
+
+## Contact verification (OTP)
+Student verifies ONE of mobile/email (server-side OTP, hashed, 10-min expiry, 5 tries, resend cooldown).
+Already-verified contacts show "Already verified". Email: Gmail SMTP + App Password. Mobile: APITxT
+(`API_TXT`, `APITXT_AUTH_KEY`, `APITXT_SENDER_ID`, ...) — adapter is `src/lib/sms.ts` (`buildParams()`).
+If SMTP/APITxT are not configured, in dev the OTP is printed in the server console.
+MS-CIT (class 8-12): completed → %, not completed → interested? → enquiry goes to the ALC center (/alc/enquiries) and admin.

@@ -61,7 +61,7 @@ function LoginInner() {
           <div>
             <CardTitle className="text-2xl">Welcome back</CardTitle>
             <CardDescription className="mt-1">
-              Sign in to Exam Portal with your email or mobile number.
+              ALC center and admin sign in.
             </CardDescription>
           </div>
         </CardHeader>
@@ -96,9 +96,9 @@ function LoginInner() {
           </form>
         </CardContent>
         <CardFooter className="justify-center text-sm text-muted-foreground">
-          New student?&nbsp;
-          <Link href="/register" className="text-primary font-medium hover:underline">
-            Create an account
+          Student?&nbsp;
+          <Link href="/" className="text-primary font-medium hover:underline">
+            Enter your exam code
           </Link>
         </CardFooter>
       </Card>

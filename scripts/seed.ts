@@ -17,9 +17,9 @@ import { TermsVersion } from "../src/models/TermsVersion";
 async function main() {
   await connectAndSyncIndexes();
 
-  const adminEmail = (process.env.SEED_ADMIN_EMAIL ?? "admin@examportal.local").toLowerCase();
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "Admin@12345";
-  const adminName = process.env.SEED_ADMIN_NAME ?? "Super Admin";
+  const adminEmail = (process.env.SEED_ADMIN_EMAIL ?? "").toLowerCase();
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "";
+  const adminName = process.env.SEED_ADMIN_NAME ?? "";
 
   const passwordHash = await bcrypt.hash(adminPassword, 12);
   const admin = await User.findOneAndUpdate(
@@ -52,30 +52,7 @@ async function main() {
   }
 
   // Optional demo center
-  if (process.env.SEED_DEMO_CENTER === "true") {
-    const code = "DEMO01";
-    let center = await ALCCenter.findOne({ code });
-    if (!center) {
-      center = await ALCCenter.create({
-        name: "Demo ALC Center",
-        code,
-        email: "center@examportal.local",
-        isActive: true,
-        createdBy: admin._id,
-      });
-      const centerHash = await bcrypt.hash("Center@12345", 12);
-      await User.create({
-        name: "Demo Center Admin",
-        email: "center@examportal.local",
-        passwordHash: centerHash,
-        role: "ALC_CENTER",
-        center: center._id,
-        isActive: true,
-        createdBy: admin._id,
-      });
-      console.log("✓ Demo center DEMO01 + login center@examportal.local (Center@12345)");
-    }
-  }
+
 
   console.log("Seed complete.");
   process.exit(0);

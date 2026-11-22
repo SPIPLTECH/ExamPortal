@@ -5,7 +5,7 @@ import { ok, fail, handleRoute } from "@/lib/api";
 import { validateTestFeasibility } from "@/lib/pool";
 import { audit, clientIp } from "@/lib/audit";
 
-/** Submit a draft test for super-admin approval (gated on pool feasibility). */
+/** Publish a test: it goes live immediately for students entering this center's exam code (gated on pool feasibility). */
 export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   const { error, ctx } = await requireAlcContext();
   if (error) return error;
@@ -27,19 +27,22 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     return fail(`Cannot submit: ${feasibility.error}`, 422);
   }
 
-  test.reviewStatus = "SUBMITTED";
-  test.submittedAt = new Date();
+  const now = new Date();
+  test.reviewStatus = "APPROVED"; // no admin approval step: publishing makes it available
+  test.submittedAt = now;
+  test.reviewedAt = now;
   test.rejectionReason = null;
+  if (test.status === "UNPUBLISHED") test.status = "ACTIVE";
   await test.save();
 
   await audit({
     actorId: ctx.user.id,
     actorRole: "ALC_CENTER",
-    action: "TEST_SUBMITTED",
+    action: "TEST_PUBLISHED",
     entityType: "Test",
     entityId: id,
     ip: clientIp(req),
   });
 
-  return ok({ id, reviewStatus: "SUBMITTED" });
+  return ok({ id, reviewStatus: "APPROVED", status: test.status });
 });

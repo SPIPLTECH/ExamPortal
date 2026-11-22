@@ -15,7 +15,8 @@ import {
 import Link from "next/link";
 import { getSessionUser } from "@/lib/session";
 import { connectDB } from "@/lib/db";
-import { StudentProfile, Test, TestEnrollment } from "@/models";
+import { StudentProfile, Test, TestEnrollment, ALCCenter } from "@/models";
+import { formatExamCode } from "@/lib/exam-code";
 import { StatCard, PageHeader } from "@/components/stat-card";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,7 @@ export default async function AlcDashboard() {
 
   await connectDB();
   const center = user.centerId;
+  const centerDoc = await ALCCenter.findById(center).select("code name").lean();
 
   const [
     students,
@@ -62,12 +64,25 @@ export default async function AlcDashboard() {
     <div>
       <PageHeader title="ALC Center Dashboard" subtitle="Your center at a glance" />
 
+      {centerDoc && (
+        <div className="rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 p-4 mb-6 flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <p className="text-sm text-muted-foreground">Your Exam Code — share this with students</p>
+            <p className="text-3xl font-mono font-bold tracking-widest">{formatExamCode(centerDoc.code)}</p>
+          </div>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Students open the portal home page, enter this code, pick their class and start the exam.
+            They get 25 random questions from the test published for their class.
+          </p>
+        </div>
+      )}
+
       {/* Quick actions */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <QuickAction href="/alc/import" icon={FileSpreadsheet} title="Import Questions (Excel)" desc="Download the template, fill it, upload" tone="emerald" />
         <QuickAction href="/alc/questions" icon={BookOpen} title="Question Bank" desc="Add, edit or delete questions" tone="blue" />
-        <QuickAction href="/alc/tests/new" icon={Plus} title="Create Test" desc="Build and submit for approval" tone="violet" />
-        <QuickAction href="/alc/schedule" icon={CalendarClock} title="Schedule Tests" desc="Publish approved tests" tone="amber" />
+        <QuickAction href="/alc/tests/new" icon={Plus} title="Create Test" desc="Build it and publish for students" tone="violet" />
+        <QuickAction href="/alc/schedule" icon={CalendarClock} title="Schedule Tests" desc="Optional exam window" tone="amber" />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

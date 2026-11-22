@@ -12,8 +12,8 @@ export default function TermsPage() {
           <div className="flex items-center gap-2 font-semibold">
             <GraduationCap className="h-6 w-6 text-primary" /> Exam Portal
           </div>
-          <Link href="/register" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> Back to sign up
+          <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" /> Back
           </Link>
         </div>
         <div className="rounded-xl border bg-card p-6 sm:p-8">

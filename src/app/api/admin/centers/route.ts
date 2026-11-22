@@ -7,6 +7,7 @@ import { createCenterSchema } from "@/lib/validations";
 import { hashPassword } from "@/lib/password";
 import { ok, fail, parseBody, handleRoute } from "@/lib/api";
 import { audit, clientIp } from "@/lib/audit";
+import { generateExamCode } from "@/lib/exam-code";
 
 export const GET = handleRoute(async (req: Request) => {
   const { error } = await requireSuperAdmin();
@@ -55,7 +56,8 @@ export const POST = handleRoute(async (req: Request) => {
   const d = parsed.data;
 
   await connectDB();
-  const code = d.code.toUpperCase();
+  // Exam code is generated automatically (unique) together with the center login.
+  const code = d.code ? d.code.toUpperCase() : await generateExamCode();
   if (await ALCCenter.exists({ code })) return fail("A center with this code already exists", 409);
   if (await User.exists({ email: d.adminEmail })) return fail("The admin email is already in use", 409);
 

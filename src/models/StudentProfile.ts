@@ -12,6 +12,8 @@ export interface IStudentProfile {
   class: number; // 5..12
   stream?: Stream | null; // only for 11/12
   schoolName: string;
+  /** Photo uploaded at registration (kept separately from the exam-time selfie). */
+  photo?: { url: string; publicId: string } | null;
   center?: Types.ObjectId | null;
   centerStatus: StudentCenterStatus;
   mscit: {
@@ -37,6 +39,7 @@ const StudentProfileSchema = new Schema<IStudentProfile>(
     class: { type: Number, required: true, min: 5, max: 12, index: true },
     stream: { type: String, enum: STREAMS, default: null, index: true },
     schoolName: { type: String, required: true, trim: true, maxlength: 200 },
+    photo: { type: new Schema({ url: String, publicId: String }, { _id: false }), default: null },
     center: { type: Schema.Types.ObjectId, ref: "ALCCenter", default: null, index: true },
     centerStatus: {
       type: String,

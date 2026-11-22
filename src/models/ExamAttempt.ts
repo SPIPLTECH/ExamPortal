@@ -43,6 +43,8 @@ export interface IExamAttempt {
   deadlineAt: Date;
   submittedAt?: Date | null;
   terminationReason?: string | null;
+  /** Verified live selfie taken before the exam (shown in the exam room, to the center and admin). */
+  selfieUrl?: string | null;
   durationMinutes: number;
   createdAt: Date;
   updatedAt: Date;
@@ -85,6 +87,7 @@ const ExamAttemptSchema = new Schema<IExamAttempt>(
     deadlineAt: { type: Date, required: true },
     submittedAt: { type: Date, default: null },
     terminationReason: { type: String, default: null },
+    selfieUrl: { type: String, default: null },
     durationMinutes: { type: Number, required: true },
   },
   { timestamps: true }

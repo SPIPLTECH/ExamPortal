@@ -4,7 +4,7 @@ import { TestComposer } from "../test-composer";
 export default function NewTestPage() {
   return (
     <div>
-      <PageHeader title="Create Test" subtitle="Build an examination and submit it for approval" />
+      <PageHeader title="Create Test" subtitle="Build an examination, add questions and publish it for students" />
       <TestComposer />
     </div>
   );

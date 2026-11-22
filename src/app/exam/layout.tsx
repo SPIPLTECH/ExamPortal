@@ -8,7 +8,7 @@ export default async function ExamLayout({
   children: React.ReactNode;
 }) {
   const user = await getSessionUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
   if (user.role !== "STUDENT") redirect("/");
   return <div className="min-h-screen bg-slate-100">{children}</div>;
 }

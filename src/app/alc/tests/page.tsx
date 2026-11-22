@@ -50,10 +50,10 @@ export default function TestsPage() {
     const res = await fetch(`/api/alc/tests/${id}/submit`, { method: "POST" });
     const json = await res.json();
     if (res.ok) {
-      toast.success("Submitted for approval");
+      toast.success("Published — live for students");
       load();
     } else {
-      toast.error(json.error || "Submit failed");
+      toast.error(json.error || "Publish failed");
     }
   }
 
@@ -75,7 +75,7 @@ export default function TestsPage() {
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <PageHeader title="Tests" subtitle="Create, submit and schedule examinations" />
+        <PageHeader title="Tests" subtitle="Create and publish examinations" />
         <Link href="/alc/tests/new">
           <Button>
             <Plus className="h-4 w-4" /> Create Test
@@ -127,7 +127,7 @@ export default function TestsPage() {
                   )}
                   {submittable(t.reviewStatus) && (
                     <Button size="sm" variant="ghost" onClick={() => submit(t._id)}>
-                      <Send className="h-4 w-4" /> Submit
+                      <Send className="h-4 w-4" /> Publish
                     </Button>
                   )}
                   {editable(t.reviewStatus) && (

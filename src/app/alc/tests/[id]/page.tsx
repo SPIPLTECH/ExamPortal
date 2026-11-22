@@ -9,7 +9,7 @@ export default async function EditTestPage({
   const { id } = await params;
   return (
     <div>
-      <PageHeader title="Edit Test" subtitle="Update and re-submit for approval" />
+      <PageHeader title="Edit Test" subtitle="Update your test and publish it" />
       <TestComposer testId={id} />
     </div>
   );

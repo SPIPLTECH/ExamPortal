@@ -16,7 +16,7 @@ type Summary = {
   passCount: number;
   failCount: number;
 };
-type StudentRow = { name: string; email: string | null; score: number; totalMarks: number; percentage: number; passed: boolean };
+type StudentRow = { name: string; email: string | null; mobile?: string | null; image?: string | null; score: number; totalMarks: number; percentage: number; passed: boolean };
 
 export default function AlcResultsPage() {
   const [items, setItems] = useState<Summary[]>([]);
@@ -85,7 +85,15 @@ export default function AlcResultsPage() {
                     <div className="divide-y">
                       {rows.map((r, i) => (
                         <div key={i} className="px-4 py-2.5 flex items-center justify-between text-sm">
-                          <span>{r.name}{r.email ? ` · ${r.email}` : ""}</span>
+                          <span className="flex items-center gap-3">
+                            {r.image ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={r.image} alt="" className="h-10 w-10 rounded-full object-cover border" />
+                            ) : (
+                              <span className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-xs font-semibold">{r.name.slice(0, 1)}</span>
+                            )}
+                            <span>{r.name}<span className="block text-xs text-muted-foreground">{r.mobile || r.email || ""}</span></span>
+                          </span>
                           <span className="flex items-center gap-3">
                             <span className="text-muted-foreground">{r.score}/{r.totalMarks}</span>
                             <b>{r.percentage}%</b>
