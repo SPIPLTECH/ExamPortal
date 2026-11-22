@@ -9,6 +9,8 @@ export interface ITermsVersion {
   createdAt: Date;
 }
 
+
+
 const TermsVersionSchema = new Schema<ITermsVersion>(
   {
     version: { type: String, required: true, unique: true, index: true },
