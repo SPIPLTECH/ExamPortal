@@ -220,9 +220,7 @@ export default function StudentEntryPage() {
             </Button>
           </form>
         )}
-        <p className="text-xs text-muted-foreground mt-4 text-center">
-          ALC Center / DCU Admin? <Link href="/login" className="text-primary hover:underline">Sign in here</Link>
-        </p>
+      
       </div>
     </div>
   );
