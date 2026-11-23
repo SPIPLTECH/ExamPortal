@@ -93,7 +93,7 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   const proctoringMode =
     // MANDATORY / DISABLED come from the ALC; OPTIONAL uses the student's choice (default: proctored).
     test.proctoring.mode === "OPTIONAL"
-      ? enrollment.proctoringChoice === "DISABLED"
+      ? enrollment?.proctoringChoice === "DISABLED"
         ? "DISABLED"
         : "MANDATORY"
       : test.proctoring.mode;
@@ -101,7 +101,7 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   const attempt = await ExamAttempt.create({
     test: test._id,
     student: ctx.user.id,
-    enrollment: enrollment._id,
+    enrollment: enrollment!._id,
     center: test.center,
     status: "IN_PROGRESS",
     questions,

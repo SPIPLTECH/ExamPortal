@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BrandLogo, BRAND_NAME } from "@/components/brand-logo";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function LoginPage() {
   return (
@@ -51,11 +51,11 @@ function LoginInner() {
     <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(60rem_40rem_at_50%_-10%,#e8f0fe,transparent)] dark:bg-none bg-background p-4">
       <Card className="w-full max-w-sm overflow-hidden rounded-2xl shadow-xl">
         <div className="google-bar h-1.5 w-full" />
-        <CardHeader className="text-center items-center gap-3 pt-6">
+        <div className="flex flex-col items-center gap-3 px-6 pt-8 pb-2">
           <BrandLogo className="h-14 w-14" />
-          <h1 className="text-xl font-semibold tracking-tight">{BRAND_NAME}</h1>
-        </CardHeader>
-        <CardContent>
+          <h1 className="text-xl font-semibold tracking-tight text-center">{BRAND_NAME}</h1>
+        </div>
+        <CardContent className="pt-4">
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
