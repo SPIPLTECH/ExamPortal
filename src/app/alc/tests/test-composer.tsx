@@ -167,7 +167,7 @@ export function TestComposer({ testId }: { testId?: string }) {
         toast.error(sjson.error || "Submit failed");
         return;
       }
-      toast.success("Test published — students can now take it with your exam code");
+      toast.success(sjson.data?.needsApproval ? "Sent to admin for approval" : "Test published — live for students");
     } else {
       setSaving(false);
       toast.success("Test saved");

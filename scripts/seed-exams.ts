@@ -31,6 +31,7 @@ import { env } from "../src/lib/env";
 import { uploadImage } from "../src/lib/cloudinary";
 import { ALCCenter } from "../src/models/ALCCenter";
 import { User } from "../src/models/User";
+import { School } from "../src/models/School";
 import { Question } from "../src/models/Question";
 import { Test, type IBlueprintEntry } from "../src/models/Test";
 import { TestEnrollment } from "../src/models/TestEnrollment";
@@ -358,8 +359,9 @@ export async function seedExams(opts: { dryRun?: boolean; wipeAllQuestions?: boo
   let owner = await User.findOne({ center: center._id, role: "ALC_CENTER" });
   if (!owner && process.env.SEED_ALC_EMAIL && process.env.SEED_ALC_PASSWORD) {
     owner = await User.create({
-      name: `${centerName} Admin`,
+      name: centerName,
       email: process.env.SEED_ALC_EMAIL.toLowerCase(),
+      username: (process.env.SEED_ALC_USERNAME || "center").toLowerCase(),
       passwordHash: await bcrypt.hash(process.env.SEED_ALC_PASSWORD, 12),
       role: "ALC_CENTER",
       center: center._id,
@@ -367,8 +369,13 @@ export async function seedExams(opts: { dryRun?: boolean; wipeAllQuestions?: boo
     });
     console.log(`✓ Created center login ${owner.email}`);
   }
+  await School.updateOne(
+    { center: center._id, name: "Demo School" },
+    { $setOnInsert: { center: center._id, name: "Demo School", address: "", phone: "" } },
+    { upsert: true }
+  );
   owner ??= await User.findOne({ role: "SUPER_ADMIN" });
-  if (!owner) throw new Error("No ALC_CENTER or SUPER_ADMIN user found — run the admin seed first.");
+  if (!owner) throw new Error("No center or SUPER_ADMIN user found — run the admin seed first.");
   const createdBy = owner._id as Types.ObjectId;
 
   // 5. wipe previous questions + tests of this center
@@ -400,7 +407,7 @@ export async function seedExams(opts: { dryRun?: boolean; wipeAllQuestions?: boo
       center: center._id,
       createdBy,
       name: `Class ${ORD[cls]} Test`,
-      description: `Class ${ORD[cls]} online test — 25 random questions from the syllabus${cls >= 8 ? " and AI & IT Literacy" : ""}.`,
+      description: `Class ${ORD[cls]} online test. Covered: ${cls >= 8 ? "Syllabus, AI and IT Literacy" : "Syllabus"}`,
       instructions:
         "Choose your language, then answer 25 multiple-choice questions. Each student receives a different random set of questions. " +
         "You can mark questions for review and change answers until you submit.",

@@ -23,12 +23,27 @@ export const PATCH = handleRoute(async (req: Request, ctxArg: unknown) => {
   const d = parsed.data;
   if (d.name !== undefined) center.name = d.name;
   if (d.email !== undefined) center.email = d.email || null;
-  if (d.phone !== undefined) center.phone = d.phone || null;
   if (d.address !== undefined) center.address = d.address || null;
-  if (d.city !== undefined) center.city = d.city || null;
-  if (d.state !== undefined) center.state = d.state || null;
-  if (d.capacity !== undefined) center.capacity = d.capacity ?? null;
+  if (d.proctoringEnabled !== undefined) center.proctoringEnabled = d.proctoringEnabled;
+  if (d.questionDbMode !== undefined) center.questionDbMode = d.questionDbMode;
+  if (d.isActive !== undefined) center.isActive = d.isActive;
+  if (d.ownerName !== undefined || d.ownerEmail !== undefined || d.ownerPhone !== undefined) {
+    center.owner = {
+      name: d.ownerName ?? center.owner?.name ?? null,
+      email: (d.ownerEmail || null) ?? center.owner?.email ?? null,
+      phone: (d.ownerPhone || null) ?? center.owner?.phone ?? null,
+    };
+  }
   await center.save();
+
+  // Extending validity resets the center login's expiry from now.
+  if (d.expiryMonths !== undefined) {
+    const { addMonths } = await import("@/lib/emails");
+    await User.updateMany(
+      { center: center._id, role: "ALC_CENTER" },
+      { loginExpiresAt: addMonths(new Date(), d.expiryMonths) }
+    );
+  }
 
   await audit({
     actorId: session.user.id,

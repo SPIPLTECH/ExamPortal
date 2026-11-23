@@ -18,7 +18,7 @@ const PUBLIC_PATHS = ["/login", "/terms", "/api/auth", "/api/public"];
 function homeForRole(role?: string): string {
   if (role === "SUPER_ADMIN") return "/admin";
   if (role === "ALC_CENTER") return "/alc";
-  if (role === "STUDENT") return "/exam/done";
+  if (role === "STUDENT") return "/student";
   return "/login";
 }
 
@@ -41,13 +41,17 @@ export default auth((req) => {
 
   // Home is the public student entry form. Staff go straight to their dashboards.
   if (pathname === "/") {
-    return user && user.role !== "STUDENT"
+    return user
       ? NextResponse.redirect(new URL(homeForRole(user.role), req.url))
       : res;
   }
 
   // Old self-registration page no longer exists.
   if (pathname === "/register") return NextResponse.redirect(new URL("/", req.url));
+
+  if (pathname === "/login" && user) {
+    return NextResponse.redirect(new URL(homeForRole(user.role), req.url));
+  }
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return res;
 

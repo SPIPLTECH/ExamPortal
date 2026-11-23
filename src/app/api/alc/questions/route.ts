@@ -1,5 +1,6 @@
 import { connectDB } from "@/lib/db";
 import { Question } from "@/models/Question";
+import { ALCCenter } from "@/models/ALCCenter";
 import { questionSchema } from "@/lib/validations";
 import { requireAlcContext } from "@/lib/alc";
 import { ok, fail, parseBody, handleRoute } from "@/lib/api";
@@ -20,16 +21,23 @@ export const GET = handleRoute(async (req: Request) => {
   const category = url.searchParams.get("category");
   const stream = url.searchParams.get("stream");
 
+  await connectDB();
+  // The bank a center sees depends on its questionDbMode:
+  //  OWN  → only this center's bank questions
+  //  COMMON/BOTH → every center's bank questions (shared library)
+  const center = await ALCCenter.findById(ctx.centerId, { questionDbMode: 1 }).lean();
+  const mode = center?.questionDbMode ?? "OWN";
+
   // The shared bank excludes questions that belong to a specific test's pool.
-  const filter: FilterQuery<IQuestion> = { center: ctx.centerId, test: null };
+  const filter: FilterQuery<IQuestion> = { test: null };
+  if (mode === "OWN") filter.center = ctx.centerId;
   if (cls) filter.class = Number(cls);
   if (difficulty) filter.difficulty = difficulty;
   if (category) filter.category = category;
   if (stream) filter.stream = stream;
   if (search) filter.text = { $regex: search, $options: "i" };
 
-  await connectDB();
-  const [items, total] = await Promise.all([
+  const [rows, total] = await Promise.all([
     Question.find(filter)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -38,7 +46,10 @@ export const GET = handleRoute(async (req: Request) => {
     Question.countDocuments(filter),
   ]);
 
-  return ok({ items, total, page, limit, pages: Math.ceil(total / limit) });
+  // Flag ownership so a BOTH-mode UI can group "My questions" vs "Common library".
+  const items = rows.map((q) => ({ ...q, ownedByMe: String(q.center) === String(ctx.centerId) }));
+
+  return ok({ items, total, page, limit, pages: Math.ceil(total / limit), questionDbMode: mode });
 });
 
 export const POST = handleRoute(async (req: Request) => {

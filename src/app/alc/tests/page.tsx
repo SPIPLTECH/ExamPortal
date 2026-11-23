@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Pencil, Send, Trash2, Loader2, CalendarClock } from "lucide-react";
+import { Plus, Pencil, Send, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/stat-card";
@@ -50,7 +50,7 @@ export default function TestsPage() {
     const res = await fetch(`/api/alc/tests/${id}/submit`, { method: "POST" });
     const json = await res.json();
     if (res.ok) {
-      toast.success("Published — live for students");
+      toast.success(json.data?.needsApproval ? "Sent to admin for approval" : "Published — live for students");
       load();
     } else {
       toast.error(json.error || "Publish failed");
@@ -111,14 +111,7 @@ export default function TestsPage() {
                   )}
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  {t.reviewStatus === "APPROVED" && (
-                    <Link href={`/alc/schedule?test=${t._id}`}>
-                      <Button size="sm" variant="outline">
-                        <CalendarClock className="h-4 w-4" /> Schedule
-                      </Button>
-                    </Link>
-                  )}
-                  {editable(t.reviewStatus) && (
+                  {(
                     <Link href={`/alc/tests/${t._id}`}>
                       <Button size="sm" variant="ghost">
                         <Pencil className="h-4 w-4" /> Edit

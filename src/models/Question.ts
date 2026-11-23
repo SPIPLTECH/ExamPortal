@@ -43,6 +43,8 @@ export interface IQuestion {
   streams?: Stream[];
   /** Stable import key (idempotent re-seeding). */
   sourceKey?: string | null;
+  /** True when copied from the shared library (no admin review needed). */
+  fromLibrary?: boolean;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -83,6 +85,7 @@ const QuestionSchema = new Schema<IQuestion>(
     chapter: { type: String, trim: true, maxlength: 300, default: null },
     streams: { type: [String], enum: STREAMS, default: [] },
     sourceKey: { type: String, default: null },
+    fromLibrary: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true, index: true },
   },
   { timestamps: true }

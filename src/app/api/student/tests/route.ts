@@ -45,7 +45,13 @@ export const GET = handleRoute(async (req: Request) => {
   });
 
   let items;
-  if (scope === "enrolled") {
+  if (scope === "dashboard") {
+    // Everything the student can take (pending) plus everything already attempted.
+    const attemptedIds = attempts.map((a) => a.test);
+    items = await Test.find({
+      $or: [eligibleTestFilter(ctx.profile), { _id: { $in: attemptedIds } }],
+    }).sort({ "schedule.startTime": 1, createdAt: -1 }).lean();
+  } else if (scope === "enrolled") {
     const ids = enrollments.filter((e) => e.status === "ENROLLED").map((e) => e.test);
     items = await Test.find({ _id: { $in: ids } }).sort({ "schedule.startTime": 1 }).lean();
   } else {

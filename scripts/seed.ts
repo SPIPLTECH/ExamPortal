@@ -1,6 +1,6 @@
 /**
  * Seed script: creates the initial SUPER_ADMIN, an active Terms version, and
- * (optionally) a demo ALC center with a login. Safe to re-run — it upserts.
+ * (optionally) a demo center with a login. Safe to re-run — it upserts.
  *
  *   npm run seed
  *
@@ -29,6 +29,7 @@ async function main() {
       $setOnInsert: {
         name: adminName,
         email: adminEmail,
+        username: (process.env.SEED_ADMIN_USERNAME ?? "admin").toLowerCase(),
         passwordHash,
         role: "SUPER_ADMIN",
         isActive: true,
@@ -52,7 +53,7 @@ async function main() {
     console.log("✓ Terms v1 created (active)");
   }
 
-  // Soft Polynomials ALC center: Class 5–12 tests with all questions + images.
+  // Soft Polynomials center: Class 5–12 tests with all questions + images.
   // Skip with SEED_EXAMS=false.
   if (process.env.SEED_EXAMS !== "false") {
     await seedExams();

@@ -4,6 +4,7 @@
  */
 export { User, type IUser } from "./User";
 export { ALCCenter, type IALCCenter } from "./ALCCenter";
+export { School, type ISchool } from "./School";
 export { StudentProfile, type IStudentProfile } from "./StudentProfile";
 export { Question, type IQuestion, type IQuestionOption } from "./Question";
 export { Test, type ITest, type ICategoryRule } from "./Test";

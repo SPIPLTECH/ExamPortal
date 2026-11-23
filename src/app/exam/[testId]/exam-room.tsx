@@ -377,7 +377,6 @@ export function ExamRoom({ testId }: { testId: string }) {
     return (
       <PreExamCheck
         testName={state.testName}
-        centerName={state.centerName}
         videoRef={webcam.videoRef}
         cameraStatus={webcam.cameraStatus}
         errorMessage={webcam.errorMessage}
@@ -421,15 +420,6 @@ export function ExamRoom({ testId }: { testId: string }) {
           </p>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          {state.centerName && (
-            <div className="hidden md:flex items-center gap-2 rounded-lg border bg-slate-50 px-3 py-1.5 max-w-[16rem]">
-              <Building2 className="h-4 w-4 text-primary shrink-0" />
-              <div className="min-w-0 leading-tight">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">ALC Center</p>
-                <p className="text-sm font-medium truncate">{state.centerName}</p>
-              </div>
-            </div>
-          )}
           <div
             className={`flex items-center gap-2 font-mono font-semibold px-3 py-1.5 rounded-lg ${
               low ? "bg-red-100 text-red-700 animate-pulse" : "bg-slate-100 text-slate-800"

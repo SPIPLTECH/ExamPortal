@@ -19,7 +19,7 @@ export const TERMS_SECTIONS: TermsSection[] = [
       "You must provide accurate, complete and current information during registration.",
       "You are responsible for keeping your login credentials confidential; do not share your password with anyone.",
       "One account per student. Creating multiple accounts or impersonating another person is prohibited.",
-      "You must be enrolled with a valid ALC center to appear for that center's examinations.",
+      "You must be enrolled with a valid center to appear for that center's examinations.",
     ],
   },
   {

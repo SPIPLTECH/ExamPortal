@@ -2,6 +2,7 @@ import { z } from "zod";
 import { connectDB } from "@/lib/db";
 import { Test } from "@/models/Test";
 import { Question } from "@/models/Question";
+import { ALCCenter } from "@/models/ALCCenter";
 import { requireAlcContext } from "@/lib/alc";
 import { objectIdSchema } from "@/lib/validations";
 import { ok, fail, parseBody, handleRoute } from "@/lib/api";
@@ -24,11 +25,13 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   const test = await Test.findOne({ _id: id, center: ctx.centerId });
   if (!test) return fail("Test not found", 404);
 
-  // Only copy bank questions (test: null) owned by this center.
+  // Which bank the center may pick from depends on its questionDbMode.
+  const center = await ALCCenter.findById(ctx.centerId, { questionDbMode: 1 }).lean();
+  const ownOnly = (center?.questionDbMode ?? "OWN") === "OWN";
   const bankQs = await Question.find({
     _id: { $in: parsed.data.questionIds },
-    center: ctx.centerId,
     test: null,
+    ...(ownOnly ? { center: ctx.centerId } : {}),
   }).lean();
 
   if (bankQs.length === 0) return fail("No eligible bank questions selected", 400);
@@ -47,6 +50,7 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     classGroup: q.classGroup ?? null,
     explanation: q.explanation ?? null,
     imageUrl: q.imageUrl ?? null,
+    fromLibrary: true,
   }));
   const inserted = await Question.insertMany(copies);
 

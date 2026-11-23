@@ -4,6 +4,7 @@ import { Test } from "@/models/Test";
 import { Question } from "@/models/Question";
 import { requireAlcContext } from "@/lib/alc";
 import { ok, fail, parseBody, handleRoute } from "@/lib/api";
+import { markNeedsReview } from "@/lib/test-review";
 import { audit, clientIp } from "@/lib/audit";
 import { OPTION_KEYS, DIFFICULTIES, CATEGORIES } from "@/lib/constants";
 
@@ -86,7 +87,7 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
 
     let isNew = false;
     if (!bankSet.has(key)) {
-      bankDocs.push({ ...common, test: null }); // always store new questions in the bank
+      // New questions reach the shared library only after admin approval of the test.
       bankSet.add(key);
       isNew = true;
     }
@@ -107,6 +108,8 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     bankDocs.length ? Question.insertMany(bankDocs, { ordered: false }) : [],
     poolDocs.length ? Question.insertMany(poolDocs, { ordered: false }) : [],
   ]);
+
+  await markNeedsReview(id);
 
   await audit({
     actorId: ctx.user.id,

@@ -29,15 +29,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         await connectDB();
 
-        const isEmail = identifier.includes("@");
-        const query = isEmail
-          ? { email: identifier.toLowerCase() }
-          : { mobile: identifier };
-        const user = await User.findOne(query);
+        // A single login box: match the identifier against username, email, or mobile.
+        const id = identifier.trim();
+        const user = await User.findOne({
+          $or: [
+            { username: id.toLowerCase() },
+            { email: id.toLowerCase() },
+            { mobile: id },
+          ],
+        });
         if (!user) return null;
 
         if (user.lockedUntil && user.lockedUntil > new Date()) return null;
         if (!user.isActive) return null;
+        // Center logins expire; reject once past their validity date.
+        if (user.loginExpiresAt && user.loginExpiresAt < new Date()) return null;
 
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok) {

@@ -33,7 +33,28 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   test.reviewedBy = session.user.id as unknown as typeof test.reviewedBy;
   test.reviewedAt = new Date();
   test.rejectionReason = decision === "APPROVED" ? null : reason ?? null;
+  if (decision === "APPROVED" && test.status === "UNPUBLISHED") test.status = "ACTIVE";
   await test.save();
+
+  // Approved: the center's own questions join the shared library for every center.
+  if (decision === "APPROVED") {
+    const { Question } = await import("@/models/Question");
+    const own = await Question.find({ test: test._id, fromLibrary: { $ne: true }, isActive: true }).lean();
+    if (own.length) {
+      const keys = own.map((q) => `lib:${q._id}`);
+      const have = new Set((await Question.find({ sourceKey: { $in: keys }, test: null }).select("sourceKey").lean()).map((q) => q.sourceKey));
+      const docs = own
+        .filter((q) => !have.has(`lib:${q._id}`))
+        .map((q) => ({
+          center: q.center, test: null, createdBy: q.createdBy, text: q.text, options: q.options,
+          correctOption: q.correctOption, difficulty: q.difficulty, class: q.class, classGroup: q.classGroup ?? null,
+          category: q.category, stream: q.stream ?? null, explanation: q.explanation ?? null, imageUrl: q.imageUrl ?? null,
+          language: q.language ?? null, subject: q.subject ?? null, chapter: q.chapter ?? null, streams: q.streams ?? [],
+          sourceKey: `lib:${q._id}`, fromLibrary: false,
+        }));
+      if (docs.length) await Question.insertMany(docs, { ordered: false });
+    }
+  }
 
   // Notify the ALC center login(s) for this center.
   const centerUsers = await User.find({ center: test.center, role: "ALC_CENTER" }).select("_id");
@@ -44,7 +65,7 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
       user: u._id,
       type: decision === "APPROVED" ? "SUCCESS" : "WARNING",
       title: `Test "${test.name}" ${verb}`,
-      body: decision === "APPROVED" ? "You can now schedule this test." : reason ?? undefined,
+      body: decision === "APPROVED" ? "Your test is approved and live for students. Its questions are now in the shared library." : reason ?? undefined,
       link: "/alc/tests",
     }))
   );

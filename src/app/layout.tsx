@@ -14,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Online Examination Portal",
-  description: "Take exams online, view results, and download certificates",
+  title: "Exam Portal",
+  description: "Exam Portal — take exams online and view your results",
+  icons: { icon: "/logo.svg" },
 };
 
 export default function RootLayout({

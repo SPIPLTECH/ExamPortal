@@ -48,9 +48,9 @@ export default async function AdminDashboard() {
 
   return (
     <div>
-      <PageHeader title="DCU Admin Dashboard" subtitle="System-wide overview" />
+      <PageHeader title="Super Admin Dashboard" subtitle="System-wide overview" />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard label="ALC Centers" value={centers} icon={Building2} tone="blue" />
+        <StatCard label="Centers" value={centers} icon={Building2} tone="blue" />
         <StatCard label="Students" value={students} icon={Users} />
         <StatCard label="Total Examinations" value={tests} icon={ClipboardList} />
         <StatCard label="Pending Approvals" value={pending} icon={FileCheck2} tone="amber" />

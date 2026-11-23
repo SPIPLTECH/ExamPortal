@@ -41,6 +41,19 @@ export type TestStatus = (typeof TEST_STATUSES)[number];
 export const PROCTORING_MODES = ["MANDATORY", "OPTIONAL", "DISABLED"] as const;
 export type ProctoringMode = (typeof PROCTORING_MODES)[number];
 
+/**
+ * How a center sources questions when composing tests.
+ * COMMON = may use the shared library of every center's bank questions.
+ * OWN    = only questions this center created.
+ * BOTH   = COMMON plus a clear "my questions" grouping.
+ */
+export const QUESTION_DB_MODES = ["COMMON", "OWN", "BOTH"] as const;
+export type QuestionDbMode = (typeof QUESTION_DB_MODES)[number];
+
+/** Selectable login-validity durations (months) for a center login. */
+export const CENTER_EXPIRY_MONTHS = [1, 2, 3, 4, 5, 6] as const;
+export type CenterExpiryMonths = (typeof CENTER_EXPIRY_MONTHS)[number];
+
 export const ATTEMPT_STATUSES = [
   "IN_PROGRESS",
   "SUBMITTED",

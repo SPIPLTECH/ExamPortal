@@ -37,10 +37,11 @@ type TestItem = {
 const EMPTY: Record<string, string> = {
   available: "No tests are open for enrollment right now.",
   enrolled: "You haven't enrolled in any tests yet.",
+  dashboard: "No exams are available for you right now.",
   explore: "No published tests are available to you right now.",
 };
 
-export function StudentTestList({ scope }: { scope: "available" | "enrolled" | "explore" }) {
+export function StudentTestList({ scope }: { scope: "available" | "enrolled" | "explore" | "dashboard" }) {
   const router = useRouter();
   const [items, setItems] = useState<TestItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,9 +78,19 @@ export function StudentTestList({ scope }: { scope: "available" | "enrolled" | "
     [load]
   );
 
-  function onEnrollClick(t: TestItem) {
-    if (t.proctoringMode === "OPTIONAL") setProctorFor(t);
-    else enroll(t._id, null);
+  function onStartClick(t: TestItem) {
+    if (t.proctoringMode === "OPTIONAL" && !t.enrolled) setProctorFor(t);
+    else router.push(`/exam/${t._id}`);
+  }
+
+  async function enrollAndStart(t: TestItem, choice: string) {
+    const res = await fetch(`/api/student/tests/${t._id}/enroll`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proctoringChoice: choice }),
+    });
+    if (res.ok) router.push(`/exam/${t._id}`);
+    else toast.error((await res.json()).error || "Could not start exam");
   }
 
   if (loading) {
@@ -107,15 +118,9 @@ export function StudentTestList({ scope }: { scope: "available" | "enrolled" | "
             <div key={t._id} className="rounded-xl border bg-background p-5 flex flex-col">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-semibold">{t.name}</h3>
-                {t.proctoringMode !== "DISABLED" && (
-                  <Badge variant="outline" className="shrink-0">
-                    <ShieldCheck className="h-3 w-3 mr-1" />
-                    {t.proctoringMode === "MANDATORY" ? "Proctored" : "Optional proctor"}
-                  </Badge>
-                )}
               </div>
               {t.description && (
-                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
+                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{t.description.replace(/\s*[—-]?\s*\d+ random questions from the syllabus( and AI & IT Literacy)?\.?/i, (_m, ai) => ` Covered: ${ai ? "Syllabus, AI and IT Literacy" : "Syllabus"}`).replace("online test  Covered","online test. Covered")}</p>
               )}
               <div className="flex flex-wrap gap-1.5 mt-3">
                 <Badge variant="secondary">Class {t.targetClass}{t.targetStream ? ` · ${t.targetStream}` : ""}</Badge>
@@ -131,20 +136,12 @@ export function StudentTestList({ scope }: { scope: "available" | "enrolled" | "
               <div className="mt-4 pt-3 border-t flex items-center justify-between">
                 {completed ? (
                   <Badge className="bg-slate-500">Completed</Badge>
-                ) : t.enrolled ? (
-                  t.examLive ? (
-                    <Button size="sm" onClick={() => router.push(`/exam/${t._id}`)}>
-                      <PlayCircle className="h-4 w-4" /> Start Exam
-                    </Button>
-                  ) : (
-                    <Badge className="bg-emerald-600">Enrolled</Badge>
-                  )
-                ) : t.enrollmentOpen ? (
-                  <Button size="sm" variant="outline" onClick={() => onEnrollClick(t)}>
-                    Enroll
+                ) : t.examLive ? (
+                  <Button size="sm" onClick={() => onStartClick(t)}>
+                    <PlayCircle className="h-4 w-4" /> {t.attemptStatus === "IN_PROGRESS" ? "Resume Exam" : "Start Exam"}
                   </Button>
                 ) : (
-                  <Badge variant="outline">Enrollment closed</Badge>
+                  <Badge variant="outline">Not started yet</Badge>
                 )}
               </div>
             </div>
@@ -165,7 +162,7 @@ export function StudentTestList({ scope }: { scope: "available" | "enrolled" | "
             <Button
               variant="outline"
               onClick={() => {
-                if (proctorFor) enroll(proctorFor._id, "DISABLED");
+                if (proctorFor) enrollAndStart(proctorFor, "DISABLED");
                 setProctorFor(null);
               }}
             >
@@ -173,7 +170,7 @@ export function StudentTestList({ scope }: { scope: "available" | "enrolled" | "
             </Button>
             <Button
               onClick={() => {
-                if (proctorFor) enroll(proctorFor._id, "MANDATORY");
+                if (proctorFor) enrollAndStart(proctorFor, "MANDATORY");
                 setProctorFor(null);
               }}
             >

@@ -36,11 +36,14 @@ export default async function ExamDonePage() {
             </div>
           </>
         ) : (
-          <p className="text-muted-foreground mt-1">Enter your exam code on the home page to begin.</p>
+          <p className="text-muted-foreground mt-1">Go to your dashboard to see your exams.</p>
         )}
         <div className="mt-6 flex flex-col gap-2">
           {user ? (
-            <ExitButton />
+            <>
+              <Button asChild><Link href="/student">Go to dashboard</Link></Button>
+              <ExitButton />
+            </>
           ) : (
             <Button asChild>
               <Link href="/">Go to home</Link>

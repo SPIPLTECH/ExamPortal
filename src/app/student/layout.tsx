@@ -1,6 +1,14 @@
 import { redirect } from "next/navigation";
+import { getSessionUser } from "@/lib/session";
+import { AppShell } from "@/components/app-shell";
 
-/** Students no longer have a dashboard: everything lives on the entry form and the exam. */
-export default function StudentLayout() {
-  redirect("/exam/done");
+export default async function StudentLayout({ children }: { children: React.ReactNode }) {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (user.role !== "STUDENT") redirect("/");
+  return (
+    <AppShell role="STUDENT" user={{ name: user.name, email: user.email, image: user.image }}>
+      {children}
+    </AppShell>
+  );
 }

@@ -155,7 +155,7 @@ Compatible with any Node.js host. Avoid running long builds on <4 GB RAM hosts.
 Pre-exam selfie uses MediaPipe FaceLandmarker (loaded from jsDelivr / storage.googleapis.com at runtime).
 Photo auto-captures only when: one face in the circle, both ears visible, both eyes open, head straight,
 good light, plain background. Saved to the student's profile + attempt, shown in exam room (top-left),
-ALC students/results and admin students. Re-run `npm run seed` to rename the admin to "DCU Admin".
+ALC students/results and admin students. Re-run `npm run seed` to rename the admin to "Super Admin".
 
 ## Contact verification (OTP)
 Student verifies ONE of mobile/email (server-side OTP, hashed, 10-min expiry, 5 tries, resend cooldown).

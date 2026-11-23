@@ -27,22 +27,33 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     return fail(`Cannot submit: ${feasibility.error}`, 422);
   }
 
+  // Questions the center wrote/imported itself need admin approval; a test built
+  // only from the shared library goes live straight away.
+  const { Question } = await import("@/models/Question");
+  const ownCount = await Question.countDocuments({ test: id, isActive: true, fromLibrary: { $ne: true } });
+  const needsApproval = ownCount > 0;
+
   const now = new Date();
-  test.reviewStatus = "APPROVED"; // no admin approval step: publishing makes it available
   test.submittedAt = now;
-  test.reviewedAt = now;
   test.rejectionReason = null;
-  if (test.status === "UNPUBLISHED") test.status = "ACTIVE";
+  if (needsApproval) {
+    test.reviewStatus = "SUBMITTED";
+    test.reviewedAt = null;
+  } else {
+    test.reviewStatus = "APPROVED";
+    test.reviewedAt = now;
+    if (test.status === "UNPUBLISHED") test.status = "ACTIVE";
+  }
   await test.save();
 
   await audit({
     actorId: ctx.user.id,
     actorRole: "ALC_CENTER",
-    action: "TEST_PUBLISHED",
+    action: needsApproval ? "TEST_SUBMITTED" : "TEST_PUBLISHED",
     entityType: "Test",
     entityId: id,
     ip: clientIp(req),
   });
 
-  return ok({ id, reviewStatus: "APPROVED", status: test.status });
+  return ok({ id, reviewStatus: test.reviewStatus, status: test.status, needsApproval });
 });

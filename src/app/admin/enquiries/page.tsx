@@ -103,7 +103,7 @@ export default function EnquiriesPage() {
                   <Badge className={STATUS_COLOR[e.status]}>{e.status}</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {e.contact} · Class {e.class}{e.school ? ` · ${e.school}` : ""}{e.center ? ` · ALC: ${e.center}` : ""} · {new Date(e.createdAt).toLocaleDateString()}
+                  {e.contact} · Class {e.class}{e.school ? ` · ${e.school}` : ""}{e.center ? ` · Center: ${e.center}` : ""} · {new Date(e.createdAt).toLocaleDateString()}
                 </p>
               </div>
               <Select value={e.status} onValueChange={(v) => setStatus(e._id, v)}>

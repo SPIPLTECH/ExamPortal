@@ -27,12 +27,22 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     centerName: centerDoc?.name ?? null,
   });
 
-  const enrollment = await TestEnrollment.findOne({
+  let enrollment = await TestEnrollment.findOne({
     test: testId,
     student: ctx.user.id,
     status: "ENROLLED",
   });
-  if (!enrollment) return fail("You must enroll before starting this exam", 403);
+  if (!enrollment) {
+    // Registered students are auto-enrolled for tests of their class/center.
+    const { eligibleTestFilter } = await import("@/lib/student");
+    const eligible = await Test.exists({ _id: testId, ...eligibleTestFilter(ctx.profile) });
+    if (!eligible) return fail("This exam is not available for you", 403);
+    enrollment = await TestEnrollment.findOneAndUpdate(
+      { test: testId, student: ctx.user.id },
+      { $setOnInsert: { test: testId, student: ctx.user.id, center: test.center }, $set: { status: "ENROLLED" } },
+      { upsert: true, new: true }
+    );
+  }
 
   // Existing attempt → resume if in progress, otherwise NO RETAKE.
   const existing = await ExamAttempt.findOne({ test: testId, student: ctx.user.id });

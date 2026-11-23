@@ -4,6 +4,7 @@ import { Question } from "@/models/Question";
 import { questionSchema } from "@/lib/validations";
 import { requireAlcContext } from "@/lib/alc";
 import { ok, fail, parseBody, handleRoute } from "@/lib/api";
+import { markNeedsReview } from "@/lib/test-review";
 import { audit, clientIp } from "@/lib/audit";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -47,6 +48,8 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     test: id,
     createdBy: ctx.user.id,
   });
+
+  await markNeedsReview(id);
 
   await audit({
     actorId: ctx.user.id,

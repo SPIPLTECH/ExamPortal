@@ -4,6 +4,8 @@ import { ROLES, type Role } from "@/lib/constants";
 export interface IUser {
   _id: Types.ObjectId;
   name: string;
+  /** Chosen login username. Unique among string values. */
+  username?: string | null;
   email?: string | null;
   mobile?: string | null;
   passwordHash: string;
@@ -12,6 +14,8 @@ export interface IUser {
   image?: { url: string; publicId: string } | null;
   /** For ALC_CENTER login users: the center they administer. */
   center?: Types.ObjectId | null;
+  /** When set and in the past, the login is expired and rejected at sign-in. */
+  loginExpiresAt?: Date | null;
   lastLoginAt?: Date | null;
   loginAttempts: number;
   lockedUntil?: Date | null;
@@ -23,6 +27,13 @@ export interface IUser {
 const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true, trim: true, maxlength: 120 },
+    username: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      maxlength: 60,
+      default: null,
+    },
     // At least one of email/mobile is required (enforced in validation layer).
     email: {
       type: String,
@@ -43,6 +54,7 @@ const UserSchema = new Schema<IUser>(
       default: null,
     },
     center: { type: Schema.Types.ObjectId, ref: "ALCCenter", default: null, index: true },
+    loginExpiresAt: { type: Date, default: null },
     lastLoginAt: { type: Date, default: null },
     loginAttempts: { type: Number, default: 0 },
     lockedUntil: { type: Date, default: null },
@@ -61,6 +73,10 @@ UserSchema.index(
 UserSchema.index(
   { mobile: 1 },
   { unique: true, partialFilterExpression: { mobile: { $type: "string" } } }
+);
+UserSchema.index(
+  { username: 1 },
+  { unique: true, partialFilterExpression: { username: { $type: "string" } } }
 );
 
 export const User: Model<IUser> =

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
-  GraduationCap,
   LayoutDashboard,
   Users,
   Building2,
@@ -20,11 +19,11 @@ import {
   ScrollText,
   Headphones,
   ShieldAlert,
-  CalendarClock,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/brand-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
   DropdownMenu,
@@ -56,26 +55,22 @@ const NAV: Record<string, NavItem[]> = {
   ],
   ALC_CENTER: [
     { href: "/alc", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/alc/schools", label: "Schools", icon: Building2 },
     { href: "/alc/tests", label: "Tests", icon: ClipboardList },
     { href: "/alc/questions", label: "Questions", icon: BookOpen },
     { href: "/alc/import", label: "Import", icon: FileSpreadsheet },
     { href: "/alc/students", label: "Students", icon: Users },
     { href: "/alc/enquiries", label: "MS-CIT", icon: Headphones },
-    { href: "/alc/schedule", label: "Scheduling", icon: CalendarClock },
     { href: "/alc/results", label: "Results", icon: BarChart3 },
   ],
   STUDENT: [
-    { href: "/student", label: "Home", icon: LayoutDashboard },
-    { href: "/student/available", label: "Available", icon: ClipboardList },
-    { href: "/student/enrolled", label: "Enrolled", icon: FileCheck2 },
-    { href: "/student/history", label: "History", icon: BarChart3 },
-    { href: "/student/account", label: "Account", icon: UserCircle },
+    { href: "/student", label: "My Exams", icon: ClipboardList },
   ],
 };
 
 const ROLE_LABEL: Record<string, string> = {
-  SUPER_ADMIN: "DCU Admin",
-  ALC_CENTER: "ALC Center",
+  SUPER_ADMIN: "Super Admin",
+  ALC_CENTER: "Center",
   STUDENT: "Student",
 };
 
@@ -98,6 +93,7 @@ export function AppShell({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const nav = NAV[role] ?? [];
+  if (role === "ALC_CENTER" && user.name) user = { ...user, name: user.name.replace(/\s+Admin$/i, "") };
   const roots = ["/admin", "/alc", "/student"];
   const initials = (user.name ?? "U")
     .split(" ")
@@ -110,13 +106,12 @@ export function AppShell({
     <div className="min-h-screen bg-muted/40">
       {/* Top navigation */}
       <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+        <div className="google-bar h-1 w-full" />
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 lg:px-6">
           {/* Brand */}
           <Link href={`/${role === "SUPER_ADMIN" ? "admin" : role === "ALC_CENTER" ? "alc" : "student"}`} className="flex items-center gap-2 shrink-0">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </span>
-            <span className="font-semibold hidden sm:block">Exam Portal</span>
+            <BrandLogo className="h-9 w-9" />
+            <span className="font-semibold hidden sm:block tracking-tight">Exam Portal</span>
           </Link>
 
           {/* Desktop nav */}
@@ -200,7 +195,7 @@ export function AppShell({
               <SheetContent side="right" className="w-72">
                 <SheetHeader>
                   <SheetTitle className="flex items-center gap-2">
-                    <GraduationCap className="h-5 w-5 text-primary" /> Exam Portal
+                    <BrandLogo /> Exam Portal
                   </SheetTitle>
                 </SheetHeader>
                 <nav className="mt-4 space-y-1 px-2">

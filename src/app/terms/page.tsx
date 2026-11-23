@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { GraduationCap, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { TermsContent } from "@/components/terms-content";
 
 export const metadata = { title: "Terms and Conditions · Exam Portal" };
@@ -10,7 +10,7 @@ export default function TermsPage() {
       <div className="mx-auto max-w-3xl">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2 font-semibold">
-            <GraduationCap className="h-6 w-6 text-primary" /> Exam Portal
+            Exam Portal
           </div>
           <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" /> Back

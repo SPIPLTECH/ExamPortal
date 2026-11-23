@@ -5,6 +5,7 @@ import { Question } from "@/models/Question";
 import { questionSchema } from "@/lib/validations";
 import { requireAlcContext } from "@/lib/alc";
 import { ok, fail, parseBody, handleRoute } from "@/lib/api";
+import { markNeedsReview } from "@/lib/test-review";
 import { audit, clientIp } from "@/lib/audit";
 
 const commitSchema = z.object({
@@ -54,6 +55,8 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   if (docs.length === 0) return fail("No valid questions to import", 422, { rejected });
 
   const inserted = await Question.insertMany(docs, { ordered: false });
+
+  await markNeedsReview(id);
 
   await audit({
     actorId: ctx.user.id,

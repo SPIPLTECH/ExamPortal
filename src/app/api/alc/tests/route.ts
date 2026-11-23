@@ -5,6 +5,13 @@ import { requireAlcContext } from "@/lib/alc";
 import { ok, parseBody, handleRoute } from "@/lib/api";
 import { audit, clientIp } from "@/lib/audit";
 
+
+async function centerAllowsProctoring(centerId: string) {
+  const { ALCCenter } = await import("@/models/ALCCenter");
+  const c = await ALCCenter.findById(centerId).select("proctoringEnabled").lean();
+  return c?.proctoringEnabled !== false;
+}
+
 export const GET = handleRoute(async (req: Request) => {
   const { error, ctx } = await requireAlcContext();
   if (error) return error;
@@ -28,6 +35,7 @@ export const POST = handleRoute(async (req: Request) => {
   const d = parsed.data;
 
   await connectDB();
+  if (!(await centerAllowsProctoring(ctx.centerId))) d.proctoring = { ...d.proctoring, mode: "DISABLED" };
   const test = await Test.create({
     ...d,
     targetStream: d.targetClass >= 11 ? d.targetStream ?? null : null,

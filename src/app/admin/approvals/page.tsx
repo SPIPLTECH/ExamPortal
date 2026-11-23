@@ -39,7 +39,7 @@ export default function ApprovalsPage() {
 
   return (
     <div>
-      <PageHeader title="Test Approvals" subtitle="Review tests submitted by ALC centers" />
+      <PageHeader title="Test Approvals" subtitle="Review tests submitted by centers" />
       {loading ? (
         <div className="p-10 flex justify-center text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />

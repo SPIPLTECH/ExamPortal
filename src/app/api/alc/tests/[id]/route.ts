@@ -34,6 +34,11 @@ export const PATCH = handleRoute(async (req: Request, ctxArg: unknown) => {
   const test = await Test.findOne({ _id: id, center: ctx.centerId });
   if (!test) return fail("Test not found", 404);
 
+  if (d.proctoring && d.proctoring.mode !== "DISABLED") {
+    const { ALCCenter } = await import("@/models/ALCCenter");
+    const c = await ALCCenter.findById(ctx.centerId).select("proctoringEnabled").lean();
+    if (c && c.proctoringEnabled === false) d.proctoring = { ...d.proctoring, mode: "DISABLED" };
+  }
   // A test is editable in any state (including published) per requirements.
   Object.assign(test, d, {
     targetStream: d.targetClass >= 11 ? d.targetStream ?? null : null,
