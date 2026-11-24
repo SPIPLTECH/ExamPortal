@@ -47,6 +47,7 @@ const NAV: Record<string, NavItem[]> = {
     { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
     { href: "/admin/centers", label: "Centers", icon: Building2 },
     { href: "/admin/students", label: "Students", icon: Users },
+    { href: "/admin/results", label: "Results", icon: BarChart3 },
     { href: "/admin/approvals", label: "Approvals", icon: FileCheck2 },
     { href: "/admin/proctoring", label: "Proctoring", icon: ShieldAlert },
     { href: "/admin/enquiries", label: "MS-CIT", icon: Headphones },
