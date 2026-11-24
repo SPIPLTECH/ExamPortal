@@ -27,7 +27,7 @@ type Enquiry = {
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  NEW: "bg-blue-500",
+  NEW: "bg-purple-500",
   CONTACTED: "bg-amber-500",
   CONVERTED: "bg-emerald-600",
   CLOSED: "bg-slate-400",

@@ -80,8 +80,8 @@ export default function ResultDetailPage({ params }: { params: Promise<{ attempt
             </Badge>
           </div>
           <div className="flex flex-wrap gap-4 mt-4 text-sm">
-            <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 className="h-4 w-4" /> {r.correctCount} correct</span>
-            <span className="text-red-600 flex items-center gap-1"><XCircle className="h-4 w-4" /> {r.wrongCount} wrong</span>
+            <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><CheckCircle2 className="h-4 w-4" /> {r.correctCount} correct</span>
+            <span className="text-red-600 dark:text-red-400 flex items-center gap-1"><XCircle className="h-4 w-4" /> {r.wrongCount} wrong</span>
             <span className="text-muted-foreground flex items-center gap-1"><MinusCircle className="h-4 w-4" /> {r.unattemptedCount} unattempted</span>
           </div>
           {r.categoryBreakdown?.length > 0 && (
@@ -122,16 +122,16 @@ export default function ResultDetailPage({ params }: { params: Promise<{ attempt
                     key={o.key}
                     className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
                       isCorrect
-                        ? "border-emerald-500 bg-emerald-50"
+                        ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40"
                         : isChosen
-                          ? "border-red-400 bg-red-50"
+                          ? "border-red-400 bg-red-50 dark:bg-red-950/40"
                           : "border-transparent"
                     }`}
                   >
                     <span className="font-medium w-5">{o.key}.</span>
                     <span className="flex-1">{o.text}</span>
-                    {isCorrect && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
-                    {isChosen && !isCorrect && <XCircle className="h-4 w-4 text-red-600" />}
+                    {isCorrect && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                    {isChosen && !isCorrect && <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />}
                   </div>
                 );
               })}

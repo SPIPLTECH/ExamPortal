@@ -88,7 +88,7 @@ export function TestQuestionsManager({
 
       <div
         className={`flex items-center gap-2 rounded-lg p-3 text-sm mb-4 ${
-          enough ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+          enough ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300" : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300"
         }`}
       >
         {enough ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
@@ -125,7 +125,7 @@ export function TestQuestionsManager({
                   <Pencil className="h-4 w-4" />
                 </Button>
                 <Button size="icon" variant="ghost" onClick={() => remove(q._id)}>
-                  <Trash2 className="h-4 w-4 text-red-600" />
+                  <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
                 </Button>
               </div>
             </div>

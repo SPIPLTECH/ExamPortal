@@ -98,12 +98,12 @@ export function TestExcelImportDialog({
             <div className="flex-1 overflow-y-auto border rounded-lg divide-y max-h-[45vh]">
               {rows.map((r) => (
                 <div key={r.row} className="p-2.5 flex items-start gap-2 text-sm">
-                  {r.valid ? <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" /> : <XCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />}
+                  {r.valid ? <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" /> : <XCircle className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />}
                   <div className="min-w-0">
                     {r.data ? (
                       <p className="line-clamp-1">{r.data.text}</p>
                     ) : (
-                      <p className="text-red-600">Row {r.row}: {r.errors.join("; ")}</p>
+                      <p className="text-red-600 dark:text-red-400">Row {r.row}: {r.errors.join("; ")}</p>
                     )}
                     {r.duplicate && <Badge className="bg-amber-500 mt-1">Duplicate</Badge>}
                   </div>

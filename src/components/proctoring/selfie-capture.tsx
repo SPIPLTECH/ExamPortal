@@ -349,7 +349,7 @@ export function SelfieCapture({
               {cameraStatus === "DENIED" || cameraStatus === "ERROR" || cameraStatus === "UNSUPPORTED" ? (
                 <CameraOff className="h-9 w-9 text-red-400" />
               ) : phase === "loading" || cameraStatus === "REQUESTING" ? (
-                <Loader2 className="h-9 w-9 animate-spin text-blue-400" />
+                <Loader2 className="h-9 w-9 animate-spin text-purple-400" />
               ) : (
                 <Camera className="h-9 w-9 text-slate-400" />
               )}

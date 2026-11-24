@@ -105,9 +105,9 @@ export function TestImageImportDialog({
             <div className="flex-1 overflow-y-auto border rounded-lg divide-y max-h-[45vh]">
               {rows.map((r) => (
                 <div key={r.row} className="p-2.5 flex items-start gap-2 text-sm">
-                  {r.valid ? <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" /> : <XCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />}
+                  {r.valid ? <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" /> : <XCircle className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />}
                   <div className="min-w-0">
-                    {r.data ? <p className="line-clamp-1">{r.data.text}</p> : <p className="text-red-600">Row {r.row}: {r.errors.join("; ")}</p>}
+                    {r.data ? <p className="line-clamp-1">{r.data.text}</p> : <p className="text-red-600 dark:text-red-400">Row {r.row}: {r.errors.join("; ")}</p>}
                     <div className="flex gap-1 mt-0.5">
                       {r.duplicate && <Badge className="bg-amber-500">Duplicate — will skip</Badge>}
                       {r.data?.imageUrl && <Badge variant="outline">image</Badge>}

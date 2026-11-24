@@ -107,7 +107,7 @@ export default function TestsPage() {
                     {t.targetStream ? ` · ${t.targetStream}` : ""} · {t.totalQuestions} questions · {t.duration} min
                   </p>
                   {t.reviewStatus === "REJECTED" && t.rejectionReason && (
-                    <p className="text-sm text-red-600 mt-1">Reason: {t.rejectionReason}</p>
+                    <p className="text-sm text-red-600 dark:text-red-400 mt-1">Reason: {t.rejectionReason}</p>
                   )}
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -125,7 +125,7 @@ export default function TestsPage() {
                   )}
                   {editable(t.reviewStatus) && (
                     <Button size="sm" variant="ghost" onClick={() => remove(t._id)}>
-                      <Trash2 className="h-4 w-4 text-red-600" />
+                      <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
                     </Button>
                   )}
                 </div>

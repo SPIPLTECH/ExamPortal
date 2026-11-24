@@ -48,7 +48,7 @@ function LoginInner() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(60rem_40rem_at_50%_-10%,#e8f0fe,transparent)] dark:bg-none bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-transparent p-4">
       <Card className="w-full max-w-sm overflow-hidden rounded-2xl shadow-xl">
         <div className="google-bar h-1.5 w-full" />
         <div className="flex flex-col items-center gap-3 px-6 pt-8 pb-2">

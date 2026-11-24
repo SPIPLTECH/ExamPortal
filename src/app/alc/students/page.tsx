@@ -113,7 +113,7 @@ export default function AlcStudentsPage() {
                   </Button>
                 )}
                 <Button size="icon" variant="ghost" title="Remove" onClick={() => act(s._id, "REMOVE")}>
-                  <UserMinus className="h-4 w-4 text-red-600" />
+                  <UserMinus className="h-4 w-4 text-red-600 dark:text-red-400" />
                 </Button>
               </div>
             </div>

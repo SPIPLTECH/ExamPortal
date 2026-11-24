@@ -4,6 +4,7 @@ import { normalizeContact, isValidContact, type ContactType } from "@/lib/contac
 import { createProof, hashOtp } from "@/lib/verification-proof";
 import { rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/audit";
+import { accountExistsFor } from "@/lib/account-exists";
 import { ok, fail, handleRoute } from "@/lib/api";
 
 const MAX_ATTEMPTS = 5;
@@ -20,7 +21,7 @@ export const POST = handleRoute(async (req: Request) => {
   await connectDB();
   const rec = await ContactVerification.findOne({ type, contact });
   if (!rec) return fail("No code was requested for this contact", 404);
-  if (rec.verifiedAt) return ok({ verified: true, alreadyVerified: true, proof: createProof(type, contact) });
+  if (rec.verifiedAt) return ok({ verified: true, alreadyVerified: true, proof: createProof(type, contact), accountExists: await accountExistsFor(type, contact) });
   if (!rec.codeHash || !rec.expiresAt || rec.expiresAt.getTime() < Date.now()) {
     return fail("This code has expired. Request a new one.", 410);
   }
@@ -35,5 +36,5 @@ export const POST = handleRoute(async (req: Request) => {
   rec.codeHash = null;
   rec.expiresAt = null;
   await rec.save();
-  return ok({ verified: true, proof: createProof(type, contact) });
+  return ok({ verified: true, proof: createProof(type, contact), accountExists: await accountExistsFor(type, contact) });
 });

@@ -18,7 +18,7 @@ import { TermsDialog } from "@/components/terms-dialog";
 import { STREAMS, STUDENT_CLASSES } from "@/lib/constants";
 
 type VType = "MOBILE" | "EMAIL";
-type Verified = { type: VType; value: string; proof: string; already: boolean };
+type Verified = { type: VType; value: string; proof: string; already: boolean; accountExists: boolean };
 type SchoolOpt = { id: string; name: string };
 type Registered = { username: string; className: string; emailed: boolean; testId: string | null };
 
@@ -54,6 +54,8 @@ export default function StudentRegisterPage() {
   const showStream = cls >= 11;
   const showMscit = cls >= 8;
   const set = (k: keyof typeof form, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
+  const step1 = Boolean(form.name.trim() && form.schoolId && form.class && (!showStream || form.stream));
+  const step2 = !showMscit || (form.mscit === "no" || (form.mscit === "yes" && form.mscitPct !== ""));
   const photoUrl = useMemo(() => (photo ? URL.createObjectURL(photo) : null), [photo]);
 
   useEffect(() => {
@@ -127,9 +129,9 @@ export default function StudentRegisterPage() {
   // ─── Success / choice screens ──────────────────────────────────────
   if (registered) {
     return (
-      <div className="min-h-screen bg-muted/30 py-10 px-4">
+      <div className="min-h-screen py-10 px-4">
         <div className="mx-auto max-w-md bg-background border rounded-2xl shadow-sm p-7 text-center">
-          <CheckCircle2 className="h-12 w-12 text-emerald-600 mx-auto mb-3" />
+          <CheckCircle2 className="h-12 w-12 text-emerald-600 dark:text-emerald-400 mx-auto mb-3" />
           {laterDone ? (
             <>
               <h1 className="text-xl font-bold">Thank you!</h1>
@@ -162,111 +164,127 @@ export default function StudentRegisterPage() {
 
   // ─── Registration form ─────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-muted/30 py-8 px-4">
-      <div className="mx-auto max-w-xl">
-        <div className="flex items-center justify-center gap-2 font-semibold text-lg mb-5">
+    <div className="min-h-screen flex flex-col justify-center py-6 px-4">
+      <div className="mx-auto w-full max-w-xl">
+        <div className="flex items-center justify-center gap-2 font-semibold text-lg mb-4">
           <BrandLogo className="h-9 w-9" /> Exam Portal
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-4">
-
-          <Card title="Student details" icon={UserRound}>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <Field label="Full name" required>
-                <IconInput icon={UserRound} value={form.name} onChange={(v) => set("name", v)} required />
-              </Field>
-              <Field label="School" required>
-                <Select value={form.schoolId} onValueChange={(v) => set("schoolId", v)}>
-                  <SelectTrigger className="w-full"><School className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Select your school" /></SelectTrigger>
-                  <SelectContent>{schools.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </Field>
-              <Field label="Class" required>
-                <Select value={form.class} onValueChange={(v) => set("class", v)}>
-                  <SelectTrigger className="w-full"><BookOpen className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Select class" /></SelectTrigger>
-                  <SelectContent>{STUDENT_CLASSES.map((c) => <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>)}</SelectContent>
-                </Select>
-              </Field>
-              {showStream && (
-                <Field label="Stream" required>
-                  <Select value={form.stream} onValueChange={(v) => set("stream", v)}>
-                    <SelectTrigger className="w-full"><Layers className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Select stream" /></SelectTrigger>
-                    <SelectContent>{STREAMS.map((s) => <SelectItem key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</SelectItem>)}</SelectContent>
-                  </Select>
-                </Field>
-              )}
-            </div>
-          </Card>
-
-          <VerifyContact verified={verified} onVerified={setVerified} email={email} setEmail={setEmail} mobile={mobile} setMobile={setMobile} />
-
-          {showMscit && (
-            <Card title="MS-CIT" icon={Headphones}>
-              <Field label="Have you completed MS-CIT?" required>
-                <YesNo value={form.mscit} onChange={(v) => set("mscit", v)} />
-              </Field>
-              {form.mscit === "yes" && (
-                <div className="mt-4 max-w-[12rem]">
-                  <Field label="MS-CIT percentage (%)" required>
-                    <Input type="number" min={0} max={100} step="0.01" value={form.mscitPct} onChange={(e) => set("mscitPct", e.target.value)} required />
+        <form onSubmit={onSubmit}>
+          <div className="mx-auto max-w-xl space-y-4">
+              <Card title="Student details" icon={UserRound}>
+                <div className="grid gap-4">
+                  <Field label="Full name" required>
+                    <IconInput icon={UserRound} value={form.name} onChange={(v) => set("name", v)} required />
                   </Field>
-                </div>
-              )}
-              {form.mscit === "no" && (
-                <div className="mt-4">
-                  <Field label="Are you interested in MS-CIT? Our course advisor will call you.">
-                    <YesNo value={form.mscitInterested} onChange={(v) => set("mscitInterested", v)} />
+                  <Field label="School" required>
+                    <Select value={form.schoolId} onValueChange={(v) => set("schoolId", v)}>
+                      <SelectTrigger className="w-full"><School className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Select your school" /></SelectTrigger>
+                      <SelectContent>{schools.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                    </Select>
                   </Field>
+                  <div className={showStream ? "grid grid-cols-2 gap-3" : ""}>
+                    <Field label="Class" required>
+                      <Select value={form.class} onValueChange={(v) => set("class", v)}>
+                        <SelectTrigger className="w-full"><BookOpen className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Select class" /></SelectTrigger>
+                        <SelectContent>{STUDENT_CLASSES.map((c) => <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </Field>
+                    {showStream && (
+                      <Field label="Stream" required>
+                        <Select value={form.stream} onValueChange={(v) => set("stream", v)}>
+                          <SelectTrigger className="w-full"><Layers className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Stream" /></SelectTrigger>
+                          <SelectContent>{STREAMS.map((s) => <SelectItem key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </Field>
+                    )}
+                  </div>
                 </div>
+              </Card>
+
+              {showMscit && step1 && (
+                <Card title="MS-CIT" icon={Headphones}>
+                  <Field label="Have you completed MS-CIT?" required>
+                    <YesNo value={form.mscit} onChange={(v) => set("mscit", v)} />
+                  </Field>
+                  {form.mscit === "yes" && (
+                    <div className="mt-3 max-w-[12rem]">
+                      <Field label="MS-CIT percentage (%)" required>
+                        <Input type="number" min={0} max={100} step="0.01" value={form.mscitPct} onChange={(e) => set("mscitPct", e.target.value)} required />
+                      </Field>
+                    </div>
+                  )}
+                  {form.mscit === "no" && (
+                    <div className="mt-3">
+                      <Field label="Interested in MS-CIT? Our advisor will call you.">
+                        <YesNo value={form.mscitInterested} onChange={(v) => set("mscitInterested", v)} />
+                      </Field>
+                    </div>
+                  )}
+                </Card>
               )}
-            </Card>
-          )}
 
-          <Card title="Your photo" icon={Camera}>
-            <div className="flex items-center gap-4">
-              <div className="h-20 w-20 rounded-full bg-muted overflow-hidden flex items-center justify-center border shrink-0">
-                {photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photoUrl} alt="Your photo" className="h-full w-full object-cover" />
-                ) : (
-                  <Upload className="h-6 w-6 text-muted-foreground" />
-                )}
-              </div>
-              <div className="flex-1">
-                <Label htmlFor="photo">Upload a clear photo of yourself <span className="text-destructive">*</span></Label>
-                <Input id="photo" type="file" accept="image/jpeg,image/png,image/webp" className="mt-2" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
-              </div>
-            </div>
-          </Card>
+              {/* Step 2 — contact details (after student details) */}
+              {step1 && step2 && (
+                <VerifyContact verified={verified} onVerified={setVerified} email={email} setEmail={setEmail} mobile={mobile} setMobile={setMobile} />
+              )}
 
-          <Card title="Create your login" icon={Lock}>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <Field label="Username" required>
-                <IconInput icon={UserRound} value={form.username} onChange={(v) => set("username", v.toLowerCase())} placeholder="e.g. riya.patil" required />
-              </Field>
-              <div />
-              <Field label="Password" required>
-                <IconInput icon={Lock} type="password" value={form.password} onChange={(v) => set("password", v)} required />
-              </Field>
-              <Field label="Confirm password" required>
-                <IconInput icon={Lock} type="password" value={form.confirmPassword} onChange={(v) => set("confirmPassword", v)} required />
-              </Field>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">At least 8 characters with an uppercase letter, a number and a special character.</p>
-          </Card>
+              {/* Step 3 — photo (after contact verified) */}
+              {step1 && step2 && verified && (
+              <Card title="Your photo" icon={Camera}>
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-16 rounded-full bg-muted overflow-hidden flex items-center justify-center border shrink-0">
+                    {photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={photoUrl} alt="Your photo" className="h-full w-full object-cover" />
+                    ) : (
+                      <Upload className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <Label htmlFor="photo">Upload a clear photo <span className="text-destructive">*</span></Label>
+                    <Input id="photo" type="file" accept="image/jpeg,image/png,image/webp" className="mt-2" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+                  </div>
+                </div>
+              </Card>
+              )}
 
-          <label className="flex items-start gap-2 text-sm px-1">
-            <Checkbox checked={form.acceptTerms} onCheckedChange={(v) => set("acceptTerms", Boolean(v))} className="mt-0.5" />
-            <span>I accept the <TermsDialog />.</span>
-          </label>
+              {/* Step 4 — login (after photo) */}
+              {step1 && step2 && verified && photo && (
+              <Card title="Create your login" icon={Lock}>
+                <div className="grid gap-3">
+                  <Field label="Username" required>
+                    <IconInput icon={UserRound} value={form.username} onChange={(v) => set("username", v.toLowerCase())} placeholder="e.g. riya.patil" required />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Password" required>
+                      <IconInput icon={Lock} type="password" value={form.password} onChange={(v) => set("password", v)} required />
+                    </Field>
+                    <Field label="Confirm" required>
+                      <IconInput icon={Lock} type="password" value={form.confirmPassword} onChange={(v) => set("confirmPassword", v)} required />
+                    </Field>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">8+ characters with an uppercase letter, a number and a special character.</p>
+              </Card>
+              )}
 
-          <Button type="submit" className="w-full" size="lg" disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-            Register
-          </Button>
-          <p className="text-center text-sm text-muted-foreground">
-            Already registered? <a href="/login" className="text-primary font-medium hover:underline">Log in</a>
-          </p>
+              {/* Step 5 — terms + register (after login details) */}
+              {step1 && step2 && verified && photo && form.username.trim().length >= 3 && form.password && form.confirmPassword && (<>
+              <label className="flex items-start gap-2 text-sm px-1">
+                <Checkbox checked={form.acceptTerms} onCheckedChange={(v) => set("acceptTerms", Boolean(v))} className="mt-0.5" />
+                <span>I accept the <TermsDialog />.</span>
+              </label>
+
+              <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                Register
+              </Button>
+              <p className="text-center text-sm text-muted-foreground">
+                Already registered? <a href="/login" className="text-primary font-medium hover:underline">Log in</a>
+              </p>
+              </>)}
+          </div>
         </form>
       </div>
     </div>
@@ -303,7 +321,7 @@ function VerifyContact({ verified, onVerified, email, setEmail, mobile, setMobil
         return;
       }
       if (json.data.alreadyVerified) {
-        onVerified({ type, value: contact.trim(), proof: json.data.proof, already: true });
+        onVerified({ type, value: contact.trim(), proof: json.data.proof, already: true, accountExists: !!json.data.accountExists });
         setActive(null);
         return;
       }
@@ -325,7 +343,7 @@ function VerifyContact({ verified, onVerified, email, setEmail, mobile, setMobil
       const res = await fetch("/api/public/verify/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: active, contact, code: otp }) });
       const json = await res.json();
       if (!res.ok) return toast.error(json.error || "Verification failed");
-      onVerified({ type: active, value: contact.trim(), proof: json.data.proof, already: !!json.data.alreadyVerified });
+      onVerified({ type: active, value: contact.trim(), proof: json.data.proof, already: !!json.data.alreadyVerified, accountExists: !!json.data.accountExists });
       setActive(null);
     } finally {
       setBusy(null);
@@ -336,7 +354,7 @@ function VerifyContact({ verified, onVerified, email, setEmail, mobile, setMobil
     const Icon = verified.type === "MOBILE" ? Phone : Mail;
     return (
       <Card title="Contact details" icon={BadgeCheck}>
-        <div className="flex items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-emerald-800">
+        <div className="flex items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 p-3 text-emerald-800 dark:text-emerald-300">
           <BadgeCheck className="h-6 w-6 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="font-medium flex items-center gap-1.5"><Icon className="h-4 w-4" /> <span className="truncate">{verified.value}</span></p>
@@ -406,7 +424,7 @@ function VerifyContact({ verified, onVerified, email, setEmail, mobile, setMobil
 
 function Card({ title, icon: Icon, children }: { title: string; icon: typeof UserRound; children: React.ReactNode }) {
   return (
-    <section className="bg-card border rounded-2xl shadow-sm p-5 border-t-4 border-t-[#4285f4]">
+    <section className="bg-card border rounded-2xl shadow-sm p-4 border-t-4 border-t-[#5b2a86]">
       <h2 className="font-semibold flex items-center gap-2 mb-3"><Icon className="h-4 w-4 text-primary" /> {title}</h2>
       {children}
     </section>

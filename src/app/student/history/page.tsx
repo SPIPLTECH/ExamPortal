@@ -80,8 +80,8 @@ export default function HistoryPage() {
               </div>
               <div className="flex flex-wrap gap-4 mt-3 text-sm text-muted-foreground">
                 <span>Score: <b className="text-foreground">{r.score}/{r.totalMarks}</b></span>
-                <span className="text-emerald-600">Correct: {r.correctCount}</span>
-                <span className="text-red-600">Wrong: {r.wrongCount}</span>
+                <span className="text-emerald-600 dark:text-emerald-400">Correct: {r.correctCount}</span>
+                <span className="text-red-600 dark:text-red-400">Wrong: {r.wrongCount}</span>
                 <span>Unattempted: {r.unattemptedCount}</span>
               </div>
               {r.categoryBreakdown?.length > 0 && (

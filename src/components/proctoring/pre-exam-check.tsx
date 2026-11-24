@@ -43,7 +43,7 @@ export function PreExamCheck({
   ];
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950 text-slate-100">
       <div className="w-full max-w-4xl rounded-2xl bg-slate-900/90 border border-slate-700 shadow-2xl p-5 sm:p-8">
         <div className="flex flex-wrap items-center gap-3 mb-5">
           <div className="h-11 w-11 rounded-xl bg-emerald-500/15 flex items-center justify-center">
@@ -55,7 +55,7 @@ export function PreExamCheck({
           </div>
           {centerName && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-slate-200">
-              <Building2 className="h-4 w-4 text-indigo-300" /> {centerName}
+              <Building2 className="h-4 w-4 text-purple-300" /> {centerName}
             </span>
           )}
         </div>

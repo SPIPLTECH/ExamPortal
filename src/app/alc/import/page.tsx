@@ -171,7 +171,7 @@ export default function ImportPage() {
                       </div>
                     </>
                   ) : (
-                    <ul className="text-sm text-red-600 mt-1 list-disc ml-4">
+                    <ul className="text-sm text-red-600 dark:text-red-400 mt-1 list-disc ml-4">
                       {r.errors.map((e, i) => (
                         <li key={i}>{e}</li>
                       ))}

@@ -23,7 +23,7 @@ type Row = {
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  ACTIVE: "bg-blue-500",
+  ACTIVE: "bg-purple-500",
   ENDED: "bg-slate-400",
   TERMINATED: "bg-red-600",
   PENDING: "bg-amber-500",

@@ -6,7 +6,7 @@ export const metadata = { title: "Terms and Conditions · Exam Portal" };
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-muted/40 py-10 px-4">
+    <div className="min-h-screen py-10 px-4">
       <div className="mx-auto max-w-3xl">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2 font-semibold">

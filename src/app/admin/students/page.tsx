@@ -119,7 +119,7 @@ export default function StudentsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-medium">{s.name}</p>
-                  {!s.isActive && <Badge variant="outline" className="text-red-600">Disabled</Badge>}
+                  {!s.isActive && <Badge variant="outline" className="text-red-600 dark:text-red-400">Disabled</Badge>}
                 </div>
                 <p className="text-sm text-muted-foreground truncate">
                   {s.email || s.mobile || "—"}
@@ -140,7 +140,7 @@ export default function StudentsPage() {
                   <Power className="h-4 w-4" />
                 </Button>
                 <Button size="icon" variant="ghost" title="Delete" onClick={() => del(s._id)}>
-                  <Trash2 className="h-4 w-4 text-red-600" />
+                  <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
                 </Button>
               </div>
             </div>

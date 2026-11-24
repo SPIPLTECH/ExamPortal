@@ -24,7 +24,6 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/brand-logo";
-import { ThemeToggle } from "@/components/theme-toggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -103,7 +102,7 @@ export function AppShell({
     .toUpperCase();
 
   return (
-    <div className="min-h-screen bg-muted/40">
+    <div className="min-h-screen">
       {/* Top navigation */}
       <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="google-bar h-1 w-full" />
@@ -139,7 +138,6 @@ export function AppShell({
 
           {/* Right side */}
           <div className="ml-auto flex items-center gap-1">
-            <ThemeToggle />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

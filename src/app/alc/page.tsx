@@ -78,10 +78,10 @@ function QuickAction({
   tone: "emerald" | "blue" | "violet" | "amber";
 }) {
   const tones: Record<string, string> = {
-    emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    blue: "bg-blue-50 text-blue-700 border-blue-200",
+    emerald: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 border-emerald-200 dark:border-emerald-800",
+    blue: "bg-purple-50 dark:bg-purple-950/40 text-purple-700 border-purple-200 dark:border-purple-800",
     violet: "bg-violet-50 text-violet-700 border-violet-200",
-    amber: "bg-amber-50 text-amber-700 border-amber-200",
+    amber: "bg-amber-50 dark:bg-amber-950/40 text-amber-700 border-amber-200 dark:border-amber-800",
   };
   return (
     <Link href={href} className={`rounded-xl border p-4 transition-shadow hover:shadow-sm ${tones[tone]}`}>

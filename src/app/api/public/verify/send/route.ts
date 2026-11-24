@@ -7,6 +7,7 @@ import { sendSms, smsConfigured } from "@/lib/sms";
 import { createProof, hashOtp } from "@/lib/verification-proof";
 import { rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/audit";
+import { accountExistsFor } from "@/lib/account-exists";
 import { ok, fail, handleRoute } from "@/lib/api";
 
 const OTP_TTL_MS = 10 * 60_000;
@@ -28,7 +29,7 @@ export const POST = handleRoute(async (req: Request) => {
   await connectDB();
   let rec = await ContactVerification.findOne({ type, contact });
   if (rec?.verifiedAt) {
-    return ok({ alreadyVerified: true, proof: createProof(type, contact) });
+    return ok({ alreadyVerified: true, proof: createProof(type, contact), accountExists: await accountExistsFor(type, contact) });
   }
 
   const now = Date.now();

@@ -38,7 +38,7 @@ export function WebcamPreview({
             </>
           ) : cameraStatus === "REQUESTING" ? (
             <>
-              <Camera className="w-8 h-8 text-blue-400 animate-pulse" />
+              <Camera className="w-8 h-8 text-purple-400 animate-pulse" />
               <p className="text-xs text-slate-300">Requesting permission…</p>
             </>
           ) : (
