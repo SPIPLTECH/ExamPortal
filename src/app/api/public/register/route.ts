@@ -92,6 +92,18 @@ export const POST = handleRoute(async (req: Request) => {
   const center = await ALCCenter.findOne({ _id: school.center, isActive: true }).select("_id").lean();
   if (!center) return fail("This school's center is not active.", 400);
 
+  // No exam published for this school's center (and class) → say so clearly, before anything is created.
+  const tests = await Test.find({
+    ...eligibleTestFilter({ center: center._id, class: d.class, stream } as unknown as IStudentProfile),
+    status: { $ne: "COMPLETED" },
+  })
+    .sort({ createdAt: -1 })
+    .select("schedule")
+    .lean<ITest[]>();
+  if (tests.length === 0) {
+    return fail("Is School ke liye abhi koi exam available nahi hai. Please try again later.", 404);
+  }
+
   // Password hash + (optional) photo upload run together.
   const [passwordHash, photo] = await Promise.all([
     hashPassword(d.password),
@@ -123,7 +135,7 @@ export const POST = handleRoute(async (req: Request) => {
   const className = `Class ${d.class}${stream ? ` (${stream.charAt(0) + stream.slice(1).toLowerCase()})` : ""}`;
 
   // Profile, the MS-CIT enquiry (center + admin both read it) and the live-exam lookup together.
-  const [, , tests] = await Promise.all([
+  await Promise.all([
     StudentProfile.create({
       user: user._id,
       class: d.class,
@@ -158,13 +170,6 @@ export const POST = handleRoute(async (req: Request) => {
           { upsert: true, setDefaultsOnInsert: true }
         )
       : Promise.resolve(null),
-    Test.find({
-      ...eligibleTestFilter({ center: center._id, class: d.class, stream } as unknown as IStudentProfile),
-      status: { $ne: "COMPLETED" },
-    })
-      .sort({ createdAt: -1 })
-      .select("schedule")
-      .lean<ITest[]>(),
   ]);
   const liveTest = tests.find((t) => examLive(t));
 
