@@ -18,9 +18,11 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   const attempt = await ExamAttempt.findOne({ test: testId, student: ctx.user.id });
   if (!attempt) return fail("No active attempt", 404);
   if (attempt.status !== "IN_PROGRESS") return fail("This exam is no longer active", 409);
-  if (attempt.proctoringMode === "DISABLED") return fail("Proctoring is not enabled for this attempt", 400);
-
   const test = await Test.findById(testId).select("proctoring").lean();
+  // Camera proctoring off is fine as long as the fullscreen lock is on.
+  if (attempt.proctoringMode === "DISABLED" && !test?.proctoring?.requireFullscreen) {
+    return fail("Proctoring is not enabled for this attempt", 400);
+  }
   const maxWarnings = Math.max(1, test?.proctoring?.maxTabSwitches ?? 3);
 
   let session = await ProctoringSession.findOne({ attempt: attempt._id });

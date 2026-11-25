@@ -3,13 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "next dev",
+    "dev:webpack": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
     "seed:exams": "tsx scripts/seed-exams.ts",
-    "seed:exams:dry": "tsx scripts/seed-exams.ts --dry-run"
+    "seed:exams:dry": "tsx scripts/seed-exams.ts --dry-run",
+    "seed:datatech": "tsx scripts/seed-datatech.ts",
+    "start:prod": "next build --webpack && next start"
   },
   "dependencies": {
     "@hookform/resolvers": "3.9.1",

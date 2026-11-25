@@ -37,6 +37,7 @@ export function useBrowserMonitoring({
 }: Props) {
   const [warnings, setWarnings] = useState(initialWarnings);
   const [maxWarnings, setMaxWarnings] = useState(initialMaxWarnings);
+  useEffect(() => setMaxWarnings(initialMaxWarnings), [initialMaxWarnings]);
   const [isFlagged, setIsFlagged] = useState(false);
   const [activeWarningMessage, setActiveWarningMessage] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(

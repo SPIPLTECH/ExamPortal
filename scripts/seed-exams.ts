@@ -300,11 +300,30 @@ async function uploadAll(files: string[], dryRun: boolean): Promise<Map<string, 
 
 /* --------------------------------- main ----------------------------------- */
 
-export async function seedExams(opts: { dryRun?: boolean; wipeAllQuestions?: boolean } = {}) {
+export type SeedOptions = {
+  dryRun?: boolean;
+  wipeAllQuestions?: boolean;
+  centerName?: string;
+  centerCode?: string;
+  /** Center login to create / update (username + password). */
+  login?: { username: string; password: string; name?: string };
+  duration?: number;
+  /** One test per stream for classes 11/12 (Science / Commerce / Arts) instead of one shared test. */
+  streamWiseTests?: boolean;
+  proctoring?: { mode: "MANDATORY" | "OPTIONAL" | "DISABLED"; requireFullscreen: boolean; maxTabSwitches: number };
+  instructions?: string;
+  rules?: string;
+  specialConditions?: string;
+  /** Create a "Demo School" for the center (default true). */
+  demoSchool?: boolean;
+};
+
+export async function seedExams(opts: SeedOptions = {}) {
   const dryRun = opts.dryRun ?? process.argv.includes("--dry-run");
   const wipeAll = opts.wipeAllQuestions ?? process.argv.includes("--wipe-all-questions");
-  const centerName = process.env.SEED_CENTER_NAME || "Soft Polynomials";
-  const duration = Number(process.env.SEED_TEST_DURATION) || 30;
+  const centerName = opts.centerName || process.env.SEED_CENTER_NAME || "Soft Polynomials";
+  const duration = opts.duration || Number(process.env.SEED_TEST_DURATION) || 30;
+  const proctoring = opts.proctoring ?? { mode: "OPTIONAL" as const, requireFullscreen: true, maxTabSwitches: 3 };
 
   // 1. parse + validate everything first (fail before touching any data).
   console.log("Parsing Excel files…");
@@ -345,11 +364,18 @@ export async function seedExams(opts: { dryRun?: boolean; wipeAllQuestions?: boo
 
   // 4. center + owner
   await connectAndSyncIndexes();
-  let center = await ALCCenter.findOne({ name: { $regex: `^\\s*${centerName.replace(/\s+/g, "\\s+")}\\s*$`, $options: "i" } });
+  // If the login already exists and belongs to a center, that IS the center (whatever its name is).
+  let center = opts.login
+    ? await User.findOne({ username: opts.login.username.toLowerCase(), role: "ALC_CENTER" })
+        .select("center")
+        .lean()
+        .then((u) => (u?.center ? ALCCenter.findById(u.center) : null))
+    : null;
+  center ??= await ALCCenter.findOne({ name: { $regex: `^\\s*${centerName.replace(/\s+/g, "\\s+")}\\s*$`, $options: "i" } });
   if (!center) {
     center = await ALCCenter.create({
       name: centerName,
-      code: (process.env.SEED_CENTER_CODE || "SOFTPOLY").toUpperCase(),
+      code: (opts.centerCode || process.env.SEED_CENTER_CODE || "SOFTPOLY").toUpperCase(),
       isActive: true,
     });
     console.log(`✓ Created center "${center.name}" (code ${center.code})`);
@@ -357,23 +383,42 @@ export async function seedExams(opts: { dryRun?: boolean; wipeAllQuestions?: boo
     console.log(`✓ Using existing center "${center.name}" (code ${center.code})`);
   }
   let owner = await User.findOne({ center: center._id, role: "ALC_CENTER" });
-  if (!owner && process.env.SEED_ALC_EMAIL && process.env.SEED_ALC_PASSWORD) {
+  if (opts.login) {
+    // Create the center login, or reset it if the username already exists.
+    const username = opts.login.username.toLowerCase();
+    const passwordHash = await bcrypt.hash(opts.login.password, 10);
+    const existing = await User.findOne({ username });
+    if (existing && existing.role !== "ALC_CENTER") {
+      throw new Error(`Username "${username}" is already used by a ${existing.role} account.`);
+    }
+    owner = await User.findOneAndUpdate(
+      { username },
+      {
+        $set: { passwordHash, role: "ALC_CENTER", center: center._id, isActive: true, loginAttempts: 0, lockedUntil: null, loginExpiresAt: null },
+        $setOnInsert: { name: opts.login.name || centerName, username, email: null, mobile: null },
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`✓ Center login ready — username: ${username}`);
+  } else if (!owner && process.env.SEED_ALC_EMAIL && process.env.SEED_ALC_PASSWORD) {
     owner = await User.create({
       name: centerName,
       email: process.env.SEED_ALC_EMAIL.toLowerCase(),
       username: (process.env.SEED_ALC_USERNAME || "center").toLowerCase(),
-      passwordHash: await bcrypt.hash(process.env.SEED_ALC_PASSWORD, 12),
+      passwordHash: await bcrypt.hash(process.env.SEED_ALC_PASSWORD, 10),
       role: "ALC_CENTER",
       center: center._id,
       isActive: true,
     });
     console.log(`✓ Created center login ${owner.email}`);
   }
-  await School.updateOne(
-    { center: center._id, name: "Demo School" },
-    { $setOnInsert: { center: center._id, name: "Demo School", address: "", phone: "" } },
-    { upsert: true }
-  );
+  if (opts.demoSchool !== false) {
+    await School.updateOne(
+      { center: center._id, name: "Demo School" },
+      { $setOnInsert: { center: center._id, name: "Demo School", address: "", phone: "" } },
+      { upsert: true }
+    );
+  }
   owner ??= await User.findOne({ role: "SUPER_ADMIN" });
   if (!owner) throw new Error("No center or SUPER_ADMIN user found — run the admin seed first.");
   const createdBy = owner._id as Types.ObjectId;
@@ -399,20 +444,37 @@ export async function seedExams(opts: { dryRun?: boolean; wipeAllQuestions?: boo
   };
   console.log("✓ Removed previous data:", JSON.stringify(del));
 
-  // 6. tests + question pools
+  // 6. tests + question pools. Classes 11/12 optionally get one test per stream.
   const totals: string[] = [];
+  const plan: { cls: number; stream: Stream | null }[] = [];
   for (const cls of [5, 6, 7, 8, 9, 10, 11, 12]) {
-    const { languages, blueprint } = blueprintFor(cls);
+    if (cls >= 11 && opts.streamWiseTests) for (const st of ["SCIENCE", "COMMERCE", "ARTS"] as Stream[]) plan.push({ cls, stream: st });
+    else plan.push({ cls, stream: null });
+  }
+  const pretty = (st: Stream) => st.charAt(0) + st.slice(1).toLowerCase();
+
+  for (const { cls, stream } of plan) {
+    const base = blueprintFor(cls);
+    // Stream test: keep only this stream's syllabus slices (+ AI/IT) and drop the stream tag,
+    // so the paper never depends on the student's profile.
+    const blueprint = stream
+      ? base.blueprint.filter((b) => !b.streams?.length || b.streams.includes(stream)).map((b) => ({ ...b, streams: [] }))
+      : base.blueprint;
+    const languages = base.languages;
+    const label = `Class ${ORD[cls]}${stream ? ` ${pretty(stream)}` : ""}`;
     const test = await Test.create({
       center: center._id,
       createdBy,
-      name: `Class ${ORD[cls]} Test`,
-      description: `Class ${ORD[cls]} online test. Covered: ${cls >= 8 ? "Syllabus, AI and IT Literacy" : "Syllabus"}`,
+      name: `${label} Test`,
+      description: `${label} online test. Covered: ${cls >= 8 ? "Syllabus, AI and IT Literacy" : "Syllabus"}`,
       instructions:
+        opts.instructions ??
         "Choose your language, then answer 25 multiple-choice questions. Each student receives a different random set of questions. " +
-        "You can mark questions for review and change answers until you submit.",
+          "You can mark questions for review and change answers until you submit.",
+      rules: opts.rules ?? null,
+      specialConditions: opts.specialConditions ?? null,
       targetClass: cls,
-      targetStream: null, // 11/12: one test for all streams; each student's stream decides the syllabus part
+      targetStream: stream, // null = every stream
       totalQuestions: 25,
       duration,
       passingPercentage: 40,
@@ -420,18 +482,17 @@ export async function seedExams(opts: { dryRun?: boolean; wipeAllQuestions?: boo
       negativeMarking: { enabled: false, value: 0 },
       languages,
       blueprint,
-      // OPTIONAL: the student chooses whether to be proctored (default: proctored).
-      proctoring: { mode: "OPTIONAL", requireMic: false, requireFullscreen: true, maxTabSwitches: 3 },
+      proctoring: { ...proctoring, requireMic: false },
       reviewStatus: "APPROVED",
       reviewedAt: new Date(),
       reviewedBy: createdBy,
       submittedAt: new Date(),
       status: "ACTIVE",
-      schedule: { eligibleClasses: [cls], eligibleStreams: [] },
+      schedule: { eligibleClasses: [cls], eligibleStreams: stream ? [stream] : [] },
     });
 
     const docs = parsed
-      .filter((p) => p.src.cls === cls)
+      .filter((p) => p.src.cls === cls && (!stream || !p.src.streams.length || p.src.streams.includes(stream)))
       .map((p) => ({
         center: center!._id,
         test: test._id,
@@ -449,13 +510,13 @@ export async function seedExams(opts: { dryRun?: boolean; wipeAllQuestions?: boo
         chapter: p.chapter || null,
         language: p.src.language,
         imageUrl: p.imageFile ? urlByFile.get(p.imageFile) ?? null : null,
-        sourceKey: `${cls}|${p.src.language}|${p.src.group}|${p.qno}`,
+        sourceKey: `${cls}|${stream ?? "ALL"}|${p.src.language}|${p.src.group}|${p.qno}`,
         isActive: true,
       }));
     for (let i = 0; i < docs.length; i += 500) await Question.insertMany(docs.slice(i, i + 500), { ordered: true });
     const withImg = docs.filter((d) => d.imageUrl).length;
     totals.push(`${test.name}: ${docs.length} questions (${withImg} with images)`);
-    console.log(`✓ ${test.name}: ${docs.length} questions, ${withImg} with images`);
+    console.log(`✓ ${test.name}: ${docs.length} questions in pool, ${withImg} with images · 25 per student`);
   }
   return totals;
 }

@@ -1,6 +1,6 @@
 import { connectDB } from "./db";
 import { Test, type ITest } from "@/models/Test";
-import { Question } from "@/models/Question";
+import { Question, type IQuestion } from "@/models/Question";
 import { ExamAttempt, type IExamAttempt } from "@/models/ExamAttempt";
 import { ExamResponse } from "@/models/ExamResponse";
 import { ExamResult } from "@/models/ExamResult";
@@ -24,16 +24,22 @@ async function drawEntry(
     return q;
   };
 
-  let pool = await Question.find(build(language)).lean();
-  if (pool.length < entry.count && entry.fallbackLanguage && entry.fallbackLanguage !== language) {
-    pool = await Question.find(build(entry.fallbackLanguage)).lean();
+  // Let MongoDB pick the random questions ($sample) instead of loading the whole pool into memory.
+  const sample = (lang: string | null) =>
+    Question.aggregate<IQuestion>([
+      { $match: build(lang) },
+      { $sample: { size: entry.count } },
+    ]);
+  let picked = await sample(language);
+  if (picked.length < entry.count && entry.fallbackLanguage && entry.fallbackLanguage !== language) {
+    picked = await sample(entry.fallbackLanguage);
   }
-  if (pool.length < entry.count) {
+  if (picked.length < entry.count) {
     throw new Error(
-      `Not enough questions for "${entry.label}": need ${entry.count}, have ${pool.length}.`
+      `Not enough questions for "${entry.label}": need ${entry.count}, have ${picked.length}.`
     );
   }
-  return shuffle(pool).slice(0, entry.count);
+  return shuffle(picked);
 }
 
 /**
@@ -54,14 +60,13 @@ export async function freezeQuestionSet(
   // Blueprint mode: exact per-subject counts in the student's language/stream.
   if (test.blueprint && test.blueprint.length > 0) {
     const language = opts.language ?? test.languages?.[0] ?? null;
-    const picks: Awaited<ReturnType<typeof drawEntry>>[] = [];
-    for (const entry of test.blueprint) {
-      if (entry.streams?.length) {
-        if (!opts.stream) throw new Error("Your profile has no stream; contact your center.");
-        if (!entry.streams.includes(opts.stream)) continue; // slice belongs to another stream
-      }
-      picks.push(await drawEntry(test, entry, language));
-    }
+    const entries = test.blueprint.filter((entry) => {
+      if (!entry.streams?.length) return true;
+      if (!opts.stream) throw new Error("Your profile has no stream; contact your center.");
+      return entry.streams.includes(opts.stream); // other streams' slices are skipped
+    });
+    // All slices are drawn at the same time (one query each, in parallel).
+    const picks = await Promise.all(entries.map((entry) => drawEntry(test, entry, language)));
     return buildFrozenFromPicks(picks, marking);
   }
 

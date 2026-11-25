@@ -163,3 +163,13 @@ email/phone verification. "Have you completed MS-CIT?" is asked in **every class
 the profile photo are **optional**. Students who are not MS-CIT-certified and say they are interested are
 written to the **MS-CIT Enquiries** tab (name, mobile, email, class, school) for both their ALC center and the admin.
 
+
+
+## Data-tech Systems seed
+`npm run seed:datatech` (validate only: `npm run seed:datatech -- --dry-run`; add `-- --force` if students already attempted).
+Creates the center + login (`datatechsystems` / `Avinash@12345`), Class 5–10 tests, and Class 11/12 tests per stream
+(Science / Commerce / Arts). Each student gets 25 random questions (shuffled order + options) from the class pool,
+standard rules & instructions, camera proctoring OFF and a full-screen lock with 4 chances (editable in Tests → Edit).
+
+## Speed
+For real speed run the production build: `npm run start:prod` (dev mode compiles pages on demand and is always slower).

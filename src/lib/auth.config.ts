@@ -12,6 +12,9 @@ export const authConfig: NextAuthConfig = {
   secret: process.env.AUTH_SECRET,
   callbacks: {
     async jwt({ token, user }) {
+      // Keep the session cookie tiny: a photo (esp. an inline data: URL) in the JWT can push
+      // the cookie over the browser's 4 KB limit, which silently logs the user out.
+      delete token.picture;
       if (user) {
         token.id = (user as { id: string }).id;
         token.role = (user as { role?: string }).role;

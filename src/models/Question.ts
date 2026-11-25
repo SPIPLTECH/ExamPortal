@@ -106,6 +106,8 @@ QuestionSchema.pre("validate", function (next) {
   next();
 });
 
+QuestionSchema.index({ test: 1, isActive: 1, category: 1, language: 1 });
+
 export const Question: Model<IQuestion> =
   (models.Question as Model<IQuestion>) ||
   model<IQuestion>("Question", QuestionSchema);

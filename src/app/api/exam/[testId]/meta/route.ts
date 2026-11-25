@@ -45,6 +45,8 @@ export const GET = handleRoute(async (_req: Request, ctxArg: unknown) => {
     passingPercentage: test.passingPercentage ?? 0,
     negativeMarking: test.negativeMarking?.enabled ? test.negativeMarking.value : 0,
     proctored: !!test.proctoring && test.proctoring.mode !== "DISABLED",
+    fullscreenLock: !!test.proctoring?.requireFullscreen,
+    maxWarnings: Math.max(1, test.proctoring?.maxTabSwitches ?? 4),
     hasAttempt: !!existing,
     language: existing?.language ?? null,
   });

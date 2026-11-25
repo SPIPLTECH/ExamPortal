@@ -301,21 +301,19 @@ export function TestComposer({ testId }: { testId?: string }) {
             );
           })}
         </div>
-        {f.proctMode !== "DISABLED" && (
-          <div className="grid sm:grid-cols-3 gap-4 pt-2">
-            <NumField label="Max warnings / tab switches" value={f.maxTabSwitches} onChange={(v) => set("maxTabSwitches", v)} />
-          </div>
-        )}
-        {f.proctMode !== "DISABLED" && (
-          <div className="flex gap-6 pt-2">
-            <label className="flex items-center gap-2 text-sm">
-              <Switch checked={f.requireFullscreen} onCheckedChange={(v) => set("requireFullscreen", v)} /> Require fullscreen
-            </label>
+        <div className="grid sm:grid-cols-3 gap-4 pt-2">
+          <NumField label="Chances (warnings) before auto-submit" value={f.maxTabSwitches} onChange={(v) => set("maxTabSwitches", v)} />
+        </div>
+        <div className="flex flex-wrap gap-6 pt-2">
+          <label className="flex items-center gap-2 text-sm">
+            <Switch checked={f.requireFullscreen} onCheckedChange={(v) => set("requireFullscreen", v)} /> Full-screen lock (works even with no proctoring)
+          </label>
+          {f.proctMode !== "DISABLED" && (
             <label className="flex items-center gap-2 text-sm">
               <Switch checked={f.requireMic} onCheckedChange={(v) => set("requireMic", v)} /> Require microphone
             </label>
-          </div>
-        )}
+          )}
+        </div>
       </Section>
 
       <div className="flex justify-end gap-2">

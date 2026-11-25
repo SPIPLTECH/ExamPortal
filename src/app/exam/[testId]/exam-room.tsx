@@ -70,7 +70,11 @@ export function ExamRoom({ testId }: { testId: string }) {
   const submittedRef = useRef(false);
 
   // ── Proctoring ─────────────────────────────────────────
-  const proctoringEnabled = !!state && state.proctoringMode !== "DISABLED";
+  const proctoringEnabled = !!state && state.proctoringMode !== "DISABLED"; // camera proctoring
+  // Fullscreen lock: works even when camera proctoring is OFF. Leaving fullscreen / switching
+  // tabs costs a warning; after `max` warnings the exam is auto-submitted.
+  const [lock, setLock] = useState<{ on: boolean; max: number }>({ on: false, max: 4 });
+  const lockdown = !!state && (proctoringEnabled || lock.on);
   const [proctorReady, setProctorReady] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(false);
   const endedRef = useRef(false);
@@ -105,11 +109,12 @@ export function ExamRoom({ testId }: { testId: string }) {
   }, [webcam.captureAndUpload]);
 
   const monitor = useBrowserMonitoring({
-    isActive: proctoringEnabled && proctorReady,
+    isActive: lockdown && proctorReady,
+    initialMaxWarnings: lock.max,
     onEnded: onProctorEnded,
     // Every warning stores a camera snapshot for the center and admin to review.
     onWarning: (eventType) => {
-      void captureRef.current("INCIDENT_SNAPSHOT", eventType);
+      if (proctoringEnabled) void captureRef.current("INCIDENT_SNAPSHOT", eventType);
     },
   });
   const applyPolicyResult = monitor.applyPolicyResult;
@@ -153,15 +158,18 @@ export function ExamRoom({ testId }: { testId: string }) {
   // identity snapshot (which needs a session) can be captured during the check.
   const consentSentRef = useRef(false);
   useEffect(() => {
-    if (proctoringEnabled && !proctorReady && !consentSentRef.current) {
+    if (lockdown && !proctorReady && !consentSentRef.current && (proctoringEnabled || lock.on)) {
       consentSentRef.current = true;
       sendConsent()
-        .then((r) => setAiEnabled(!!r.aiEnabled))
+        .then((r) => {
+          if (proctoringEnabled) setAiEnabled(!!r.aiEnabled);
+          else setProctorReady(true); // fullscreen-only: no camera check, the lock is live now
+        })
         .catch(() => {
-        consentSentRef.current = false;
-      });
+          consentSentRef.current = false;
+        });
     }
-  }, [proctoringEnabled, proctorReady]);
+  }, [lockdown, proctoringEnabled, proctorReady, lock.on]);
 
   // Start / resume. A multi-language test first asks the student which language
   // to use; the question paper is only built (and frozen) after that choice.
@@ -169,7 +177,7 @@ export function ExamRoom({ testId }: { testId: string }) {
     name: string; description: string | null; instructions: string | null; rules: string | null;
     specialConditions: string | null; languages: string[]; duration: number; totalQuestions: number;
     totalMarks: number; passingMarks: number; passingPercentage: number; negativeMarking: number;
-    proctored: boolean; hasAttempt: boolean;
+    proctored: boolean; fullscreenLock: boolean; maxWarnings: number; hasAttempt: boolean;
   };
   const [langChoices, setLangChoices] = useState<Intro | null>(null);
   const [pickedLang, setPickedLang] = useState<string | null>(null);
@@ -219,6 +227,7 @@ export function ExamRoom({ testId }: { testId: string }) {
         const res = await fetch(`/api/exam/${testId}/meta`);
         const json = await res.json();
         const meta = res.ok ? (json.data as Intro) : null;
+        if (meta) setLock({ on: !!meta.fullscreenLock, max: meta.maxWarnings || 4 });
         // New attempt: always show the center's instructions & rules first.
         if (meta && !meta.hasAttempt) {
           setLangChoices(meta);
@@ -422,6 +431,12 @@ export function ExamRoom({ testId }: { testId: string }) {
               This is a proctored exam: your camera will be used, and you must stay in full-screen. Switching tabs or leaving the screen gives warnings.
             </p>
           )}
+          {m.fullscreenLock && (
+            <p className="text-sm rounded-md bg-blue-50 border border-blue-200 text-blue-900 px-3 py-2">
+              <b>Full-screen exam:</b> the exam opens in full-screen and must stay in full-screen. Exiting full-screen or switching tabs/windows gives a warning.
+              You have <b>{m.maxWarnings} chances</b>; when they are used up your exam is submitted automatically.
+            </p>
+          )}
           <p className="text-sm text-slate-700">The timer starts as soon as you press <b>Start exam</b> and cannot be paused. The exam can be attempted only once.</p>
 
           {multi && (
@@ -451,6 +466,8 @@ export function ExamRoom({ testId }: { testId: string }) {
             disabled={!canStart}
             onClick={() => {
               setStartingLang(pickedLang ?? "");
+              // Must be called inside the click (browser needs a user gesture for full-screen).
+              if (m.fullscreenLock || m.proctored) void monitor.requestFullscreen();
               void startExam(pickedLang ?? undefined);
             }}
           >
@@ -501,7 +518,7 @@ export function ExamRoom({ testId }: { testId: string }) {
     );
   }
 
-  const fullscreenViolation = proctoringEnabled && proctorReady && !monitor.isFullscreen && !finished;
+  const fullscreenViolation = lockdown && proctorReady && !monitor.isFullscreen && !finished;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -511,7 +528,7 @@ export function ExamRoom({ testId }: { testId: string }) {
         <div className="min-w-0">
           <p className="font-semibold truncate leading-tight">{state.testName}</p>
           <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <ShieldCheck className="h-3 w-3" /> {proctoringEnabled ? "Proctored exam" : "Exam in progress"}
+            <ShieldCheck className="h-3 w-3" /> {proctoringEnabled ? "Proctored exam" : lockdown ? "Full-screen exam" : "Exam in progress"}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-3">
@@ -658,7 +675,7 @@ export function ExamRoom({ testId }: { testId: string }) {
       )}
 
       {/* Live proctoring overlays. */}
-      {proctoringEnabled && proctorReady && (
+      {lockdown && proctorReady && (
         <>
           {(monitor.activeWarningMessage || localWarning) && (
             <WarningBanner
@@ -672,11 +689,13 @@ export function ExamRoom({ testId }: { testId: string }) {
             />
           )}
 
-          {/* Live camera + detection status — bottom-right. */}
-          <div className="fixed bottom-4 right-4 z-40 space-y-1">
-            <WebcamPreview videoRef={webcam.videoRef} cameraStatus={webcam.cameraStatus} compact showStatusBanner={false} />
-            <DetectionBadge status={detection.status} />
-          </div>
+          {/* Live camera + detection status — bottom-right (camera proctoring only). */}
+          {proctoringEnabled && (
+            <div className="fixed bottom-4 right-4 z-40 space-y-1">
+              <WebcamPreview videoRef={webcam.videoRef} cameraStatus={webcam.cameraStatus} compact showStatusBanner={false} />
+              <DetectionBadge status={detection.status} />
+            </div>
+          )}
         </>
       )}
     </div>
