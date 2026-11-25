@@ -1,11 +1,11 @@
 import { PageHeader } from "@/components/stat-card";
-import { ResultsExplorer } from "@/components/results-explorer";
+import { SchoolResults } from "@/components/school-results";
 
 export default function AlcResultsPage() {
   return (
     <div>
-      <PageHeader title="Results & Analytics" subtitle="Performance across your tests — open a student to see their answers" />
-      <ResultsExplorer api="/api/alc/results" />
+      <PageHeader title="Results" subtitle="School-wise student results — generate a marksheet for any student" />
+      <SchoolResults />
     </div>
   );
 }
