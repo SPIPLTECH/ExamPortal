@@ -8,10 +8,8 @@ import { TestEnrollment } from "@/models/TestEnrollment";
 import { ExamAttempt } from "@/models/ExamAttempt";
 import { TermsVersion } from "@/models/TermsVersion";
 import { examEntrySchema } from "@/lib/validations";
-import { ContactVerification } from "@/models/ContactVerification";
 import { MSCITEnquiry } from "@/models/MSCITEnquiry";
-import { normalizeMobile, normalizeEmail, isValidMobile, isValidEmail } from "@/lib/contact";
-import { verifyProof } from "@/lib/verification-proof";
+import { normalizeMobile, normalizeEmail } from "@/lib/contact";
 import { hashPassword } from "@/lib/password";
 import { uploadImage } from "@/lib/cloudinary";
 import { env } from "@/lib/env";
@@ -46,7 +44,7 @@ export const POST = handleRoute(async (req: Request) => {
     examCode: form.get("examCode"),
     acceptTerms: form.get("acceptTerms") === "true",
     mscitCompleted: form.get("mscitCompleted") === null ? undefined : form.get("mscitCompleted") === "yes",
-    mscitPercentage: form.get("mscitPercentage") ? Number(form.get("mscitPercentage")) : null,
+    mscitPercentage: form.get("mscitPercentage"),
     mscitInterested: form.get("mscitInterested") === "yes",
   };
   const parsed = examEntrySchema.safeParse(raw);
@@ -54,29 +52,11 @@ export const POST = handleRoute(async (req: Request) => {
     return fail("Validation failed", 422, { issues: flattenZod(parsed.error) });
   }
   const d = parsed.data;
-  let email = d.email ? normalizeEmail(d.email) : null;
-  let mobile = d.mobile ? normalizeMobile(d.mobile) : null;
+  const email = d.email ? normalizeEmail(d.email) : null;
+  const mobile = d.mobile ? normalizeMobile(d.mobile) : null;
   const stream = d.class >= 11 ? d.stream ?? null : null;
 
   await connectDB();
-
-  // 0) At least ONE contact must be verified (OTP, done earlier on the form). The verified
-  //    contact is checked against a server-signed proof AND the verification record.
-  const vType = String(form.get("verifiedType") ?? "") === "EMAIL" ? "EMAIL" : "MOBILE";
-  const proof = String(form.get("verifyProof") ?? "");
-  const vContact = vType === "EMAIL" ? email : mobile;
-  const valid = vType === "EMAIL" ? !!email && isValidEmail(email) : !!mobile && isValidMobile(mobile);
-  if (!vContact || !valid || !verifyProof(vType, vContact, proof) || !(await ContactVerification.exists({ type: vType, contact: vContact, verifiedAt: { $ne: null } }))) {
-    return fail("Please verify your mobile number or email address first.", 403);
-  }
-  // Both contacts are COLLECTED; only one needs to be verified. The other one is stored
-  // as given (unverified) but must at least be well-formed and present.
-  if (!email || !isValidEmail(email)) {
-    return fail("Please enter a valid email address.", 422, { issues: { email: "Please enter a valid email address." } });
-  }
-  if (!mobile || !isValidMobile(mobile)) {
-    return fail("Please enter a valid 10-digit mobile number.", 422, { issues: { mobile: "Please enter a valid 10-digit mobile number." } });
-  }
 
   // 1) Exam code → center
   const center = await ALCCenter.findOne({ code: normalizeExamCode(d.examCode), isActive: true });
@@ -93,18 +73,9 @@ export const POST = handleRoute(async (req: Request) => {
     return fail(`No exam is published for Class ${d.class} at this center yet.`, 404);
   }
 
-  // 3) Find existing student (same mobile / email) or create one.
-  // Look the student up ONLY by the VERIFIED contact; the unverified one must never be able to
-  // attach someone to another person's account.
-  let user = await User.findOne(vType === "EMAIL" ? { email } : { mobile });
-  // The unverified contact is only saved if no other account already owns it.
-  const otherType = vType === "EMAIL" ? "mobile" : "email";
-  const otherValue = vType === "EMAIL" ? mobile : email;
-  const otherTaken = !!(await User.exists({ [otherType]: otherValue, ...(user ? { _id: { $ne: user._id } } : {}) }));
-  if (otherTaken) {
-    if (vType === "EMAIL") mobile = null;
-    else email = null;
-  }
+  // 3) Find existing student (same email / mobile) or create one. No verification needed.
+  const contactOr = [...(email ? [{ email }] : []), ...(mobile ? [{ mobile }] : [])];
+  let user = await User.findOne({ $or: contactOr });
   if (user && user.role !== "STUDENT") {
     return fail("This contact is already registered with another account type.", 409);
   }
@@ -148,7 +119,7 @@ export const POST = handleRoute(async (req: Request) => {
     return ok({ needsChoice: true, testName: test.name });
   }
 
-  // Registration photo (required for new students) → Cloudinary, or inline fallback.
+  // Registration photo (optional) → Cloudinary, or inline fallback.
   const photoFile = form.get("photo");
   let photo: { url: string; publicId: string } | null = null;
   if (photoFile && photoFile instanceof File && photoFile.size > 0) {
@@ -159,8 +130,6 @@ export const POST = handleRoute(async (req: Request) => {
       ? await uploadImage(buf, { folder: "exam-portal/students", mimeType: photoFile.type })
       : { url: `data:${photoFile.type};base64,${buf.toString("base64")}`, publicId: "inline" };
   }
-  const existingProfile = user ? await StudentProfile.findOne({ user: user._id }).select("photo").lean() : null;
-  if (!photo && !existingProfile?.photo) return fail("Please upload your photo.", 422, { issues: { photo: "Please upload your photo." } });
 
   const activeTerms = await TermsVersion.findOne({ active: true }).sort({ publishedAt: -1 });
 
@@ -177,9 +146,9 @@ export const POST = handleRoute(async (req: Request) => {
   } else {
     let dirty = false;
     if (!user.image && photo) { user.image = photo; dirty = true; }
-    // Fill in the contact the student did not verify, if the account does not have it yet.
-    if (!user.email && email) { user.email = email; dirty = true; }
-    if (!user.mobile && mobile) { user.mobile = mobile; dirty = true; }
+    // Fill in a contact the account does not have yet (only if nobody else owns it).
+    if (!user.email && email && !(await User.exists({ email }))) { user.email = email; dirty = true; }
+    if (!user.mobile && mobile && !(await User.exists({ mobile }))) { user.mobile = mobile; dirty = true; }
     if (dirty) await user.save();
   }
 
@@ -194,7 +163,7 @@ export const POST = handleRoute(async (req: Request) => {
       mscit: {
         completed: !!d.mscitCompleted,
         percentage: d.mscitCompleted ? d.mscitPercentage ?? null : null,
-        interested: d.class >= 8 && !d.mscitCompleted && !!d.mscitInterested,
+        interested: !d.mscitCompleted && !!d.mscitInterested,
       },
       center: center._id,
       centerStatus: "VERIFIED", // valid exam code == issued by this center
@@ -205,7 +174,7 @@ export const POST = handleRoute(async (req: Request) => {
   );
 
   // MS-CIT interest → enquiry visible to this ALC center AND the admin (course advisor calls back).
-  if (d.class >= 8 && !d.mscitCompleted && d.mscitInterested) {
+  if (!d.mscitCompleted && d.mscitInterested) {
     await MSCITEnquiry.findOneAndUpdate(
       { student: user._id },
       {

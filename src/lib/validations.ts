@@ -9,6 +9,7 @@ import {
   STREAMS,
   STUDENT_CLASSES,
 } from "./constants";
+import { normalizeMobile, isValidMobile, isValidEmail } from "./contact";
 
 // ─── Primitives ──────────────────────────────────────────────────────
 export const objectIdSchema = z
@@ -60,15 +61,51 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required").max(128),
 });
 
-// ─── Student registration (class-aware) ──────────────────────────────
+// ─── Student registration / exam entry ───────────────────────────────
+// Rules: no OTP/verification. Email OR mobile (at least one). MS-CIT "done?" is asked
+// for every class; the MS-CIT percentage and the photo are optional.
+const optionalText = (max: number) =>
+  z.preprocess((v) => (v == null ? "" : String(v).trim()), z.string().max(max));
+
+/** Empty / garbage → null, otherwise a number 0–100. Never blocks registration. */
+const optionalPercentage = z.preprocess((v) => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
+}, z.number().nullable());
+
+const classSchema = z.coerce.number().int().refine((c) => (STUDENT_CLASSES as readonly number[]).includes(c), {
+  message: "Select a valid class (5-12)",
+});
+
+const contactFields = {
+  email: optionalText(255),
+  mobile: optionalText(30),
+};
+
+function checkContacts(
+  d: { email?: string; mobile?: string },
+  ctx: z.RefinementCtx
+) {
+  const email = (d.email ?? "").trim();
+  const mobile = normalizeMobile(d.mobile ?? "");
+  if (!email && !mobile) {
+    ctx.addIssue({ code: "custom", path: ["email"], message: "Enter an email address or a mobile number" });
+    return;
+  }
+  if (email && !isValidEmail(email)) {
+    ctx.addIssue({ code: "custom", path: ["email"], message: "Enter a valid email address" });
+  }
+  if ((d.mobile ?? "").trim() && !isValidMobile(mobile)) {
+    ctx.addIssue({ code: "custom", path: ["mobile"], message: "Enter a valid 10-digit mobile number" });
+  }
+}
+
 export const studentRegisterSchema = z
   .object({
     name: nameSchema,
-    email: emailSchema.optional().or(z.literal("")),
-    mobile: mobileSchema.optional().or(z.literal("")),
-    class: z.coerce.number().int().refine((c) => (STUDENT_CLASSES as readonly number[]).includes(c), {
-      message: "Select a valid class (5-12)",
-    }),
+    ...contactFields,
+    class: classSchema,
     stream: z.enum(STREAMS).optional().nullable(),
     schoolId: objectIdSchema,
     username: usernameSchema,
@@ -77,55 +114,40 @@ export const studentRegisterSchema = z
     acceptTerms: z.literal(true, {
       errorMap: () => ({ message: "You must accept the Terms and Conditions" }),
     }),
-    // MS-CIT workflow (classes 8-12)
+    // MS-CIT workflow (every class)
     mscitCompleted: z.boolean().optional(),
-    mscitPercentage: z.coerce.number().min(0).max(100).optional().nullable(),
+    mscitPercentage: optionalPercentage,
     mscitInterested: z.boolean().optional(),
   })
+  .superRefine(checkContacts)
   .refine((d) => d.password === d.confirmPassword, {
     message: "Passwords don't match",
     path: ["confirmPassword"],
-  })
-  .refine((d) => (d.email && d.email !== "") || (d.mobile && d.mobile !== ""), {
-    message: "Provide an email or a mobile number",
-    path: ["email"],
   })
   .refine((d) => d.class < 11 || !!d.stream, {
     message: "Stream is required for classes 11 and 12",
     path: ["stream"],
   });
 
-// ─── Student exam entry (register + start, no account) ───────────────
 export const examEntrySchema = z
   .object({
     name: nameSchema,
-    email: emailSchema.optional().or(z.literal("")),
-    mobile: z.string().trim().max(20).optional().or(z.literal("")),
-    class: z.coerce.number().int().refine((c) => (STUDENT_CLASSES as readonly number[]).includes(c), {
-      message: "Select a valid class (5-12)",
-    }),
+    ...contactFields,
+    class: classSchema,
     stream: z.enum(STREAMS).optional().nullable(),
     schoolName: z.string().trim().min(2, "School name is required").max(200),
     examCode: z.string().trim().min(4, "Enter your exam code").max(40),
     acceptTerms: z.literal(true, {
       errorMap: () => ({ message: "You must accept the Terms and Conditions" }),
     }),
-    // MS-CIT (classes 8-12)
     mscitCompleted: z.boolean().optional(),
-    mscitPercentage: z.coerce.number().min(0).max(100).optional().nullable(),
+    mscitPercentage: optionalPercentage,
     mscitInterested: z.boolean().optional(),
   })
+  .superRefine(checkContacts)
   .refine((d) => d.class < 11 || !!d.stream, {
     message: "Stream is required for classes 11 and 12",
     path: ["stream"],
-  })
-  .refine((d) => d.class < 8 || d.mscitCompleted !== undefined, {
-    message: "Please tell us if you have completed MS-CIT",
-    path: ["mscitCompleted"],
-  })
-  .refine((d) => d.class < 8 || !d.mscitCompleted || (d.mscitPercentage !== null && d.mscitPercentage !== undefined && !Number.isNaN(d.mscitPercentage)), {
-    message: "Enter your MS-CIT percentage",
-    path: ["mscitPercentage"],
   });
 
 // ─── Center ──────────────────────────────────────────────────────────

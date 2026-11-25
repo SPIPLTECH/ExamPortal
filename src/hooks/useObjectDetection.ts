@@ -26,7 +26,7 @@ const COOLDOWN_MS = 10000; // min gap between the same reported violation
  * Mirrors the ProctorGuard AI classifications (NO_FACE / MULTIPLE_FACES /
  * PROHIBITED_OBJECT) but runs entirely client-side — no Python service needed.
  */
-export function useObjectDetection({ videoRef, active, onViolation, intervalMs = 1500 }: Props) {
+export function useObjectDetection({ videoRef, active, onViolation, intervalMs = 2500 }: Props) {
   const [status, setStatus] = useState<DetectionStatus>("IDLE");
   const [personCount, setPersonCount] = useState(0);
   const [ready, setReady] = useState(false);
@@ -60,7 +60,7 @@ export function useObjectDetection({ videoRef, active, onViolation, intervalMs =
       if (cancelled) return;
       const video = videoRef.current;
       const model = modelRef.current;
-      if (model && video && video.readyState >= 2) {
+      if (model && video && video.readyState >= 2 && !document.hidden) {
         try {
           const preds: Array<{ class: string; score: number; bbox: number[] }> = await model.detect(video, 10, 0.25);
           const frameArea = (video.videoWidth || 640) * (video.videoHeight || 480);

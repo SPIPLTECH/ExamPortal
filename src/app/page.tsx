@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
 import { signIn } from "next-auth/react";
 import { toast } from "sonner";
 import {
   Loader2, UserRound, Phone, Mail, School, BookOpen, Layers,
-  ArrowRight, BadgeCheck, Upload, Headphones, RefreshCw, Pencil, Camera, Lock, CheckCircle2,
+  ArrowRight, Upload, Headphones, Camera, Lock, CheckCircle2, Contact,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,76 +17,83 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { TermsDialog } from "@/components/terms-dialog";
 import { STREAMS, STUDENT_CLASSES } from "@/lib/constants";
 
-type VType = "MOBILE" | "EMAIL";
-type Verified = { type: VType; value: string; proof: string; already: boolean; accountExists: boolean };
 type SchoolOpt = { id: string; name: string };
-type Registered = { username: string; className: string; emailed: boolean; testId: string | null };
+type Registered = { userId: string; token: string; username: string; className: string; emailed: boolean; testId: string | null };
 
-/** Shrink a photo to ≤640px JPEG before upload. */
+/** Shrink a photo to ≤640px JPEG before upload (falls back to the original if the browser can't). */
 async function shrink(file: File): Promise<File> {
-  const bmp = await createImageBitmap(file);
-  const k = Math.min(1, 640 / Math.max(bmp.width, bmp.height));
-  const c = document.createElement("canvas");
-  c.width = Math.round(bmp.width * k);
-  c.height = Math.round(bmp.height * k);
-  c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
-  const blob: Blob = await new Promise((r) => c.toBlob((b) => r(b!), "image/jpeg", 0.85));
-  return new File([blob], "photo.jpg", { type: "image/jpeg" });
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 640 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * k);
+    c.height = Math.round(bmp.height * k);
+    c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close?.();
+    const blob: Blob | null = await new Promise((r) => c.toBlob((b) => r(b), "image/jpeg", 0.85));
+    return blob ? new File([blob], "photo.jpg", { type: "image/jpeg" }) : file;
+  } catch {
+    return file;
+  }
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+function cleanMobile(v: string): string {
+  let d = v.replace(/\D/g, "");
+  if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
+  if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
+  return d;
 }
 
 export default function StudentRegisterPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [schools, setSchools] = useState<SchoolOpt[]>([]);
-  const [verified, setVerified] = useState<Verified | null>(null);
-  const [email, setEmail] = useState("");
-  const [mobile, setMobile] = useState("");
+  const [schoolsLoading, setSchoolsLoading] = useState(true);
   const [photo, setPhoto] = useState<File | null>(null);
   const [registered, setRegistered] = useState<Registered | null>(null);
   const [laterDone, setLaterDone] = useState(false);
   const [form, setForm] = useState({
-    name: "", class: "", stream: "", schoolId: "",
+    name: "", email: "", mobile: "", class: "", stream: "", schoolId: "",
     username: "", password: "", confirmPassword: "",
     mscit: "" as "" | "yes" | "no", mscitPct: "", mscitInterested: "" as "" | "yes" | "no",
     acceptTerms: false,
   });
   const cls = Number(form.class);
   const showStream = cls >= 11;
-  const showMscit = cls >= 8;
   const set = (k: keyof typeof form, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
-  const step1 = Boolean(form.name.trim() && form.schoolId && form.class && (!showStream || form.stream));
-  const step2 = !showMscit || (form.mscit === "no" || (form.mscit === "yes" && form.mscitPct !== ""));
   const photoUrl = useMemo(() => (photo ? URL.createObjectURL(photo) : null), [photo]);
+  useEffect(() => () => { if (photoUrl) URL.revokeObjectURL(photoUrl); }, [photoUrl]);
 
   useEffect(() => {
-    fetch("/api/public/schools").then((r) => r.json()).then((j) => setSchools(j.data?.items ?? [])).catch(() => {});
+    fetch("/api/public/schools")
+      .then((r) => r.json())
+      .then((j) => setSchools(j.data?.items ?? []))
+      .catch(() => {})
+      .finally(() => setSchoolsLoading(false));
   }, []);
 
   async function register() {
     setLoading(true);
     try {
       const fd = new FormData();
-      fd.set("name", form.name);
+      fd.set("name", form.name.trim());
       fd.set("class", form.class);
       if (showStream) fd.set("stream", form.stream);
-      fd.set("email", email.trim());
-      fd.set("mobile", mobile.trim());
-      fd.set("verifiedType", verified!.type);
-      fd.set("verifyProof", verified!.proof);
+      fd.set("email", form.email.trim());
+      fd.set("mobile", form.mobile.trim());
       fd.set("schoolId", form.schoolId);
-      fd.set("username", form.username);
+      fd.set("username", form.username.trim());
       fd.set("password", form.password);
       fd.set("confirmPassword", form.confirmPassword);
       fd.set("acceptTerms", String(form.acceptTerms));
-      if (showMscit) {
-        fd.set("mscitCompleted", form.mscit);
-        if (form.mscit === "yes") fd.set("mscitPercentage", form.mscitPct);
-        if (form.mscit === "no") fd.set("mscitInterested", form.mscitInterested || "no");
-      }
+      fd.set("mscitCompleted", form.mscit);
+      if (form.mscit === "yes" && form.mscitPct !== "") fd.set("mscitPercentage", form.mscitPct);
+      if (form.mscit === "no") fd.set("mscitInterested", form.mscitInterested || "no");
       if (photo) fd.set("photo", await shrink(photo));
 
       const res = await fetch("/api/public/register", { method: "POST", body: fd });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         const first = json.issues ? (Object.values(json.issues)[0] as string) : null;
         toast.error(first || json.error || "Could not register");
@@ -101,24 +108,43 @@ export default function StudentRegisterPage() {
   }
 
   async function startNow() {
-    if (!registered) return;
+    if (!registered || loading) return;
     setLoading(true);
-    const r = await signIn("credentials", { identifier: registered.username, password: form.password, redirect: false });
-    setLoading(false);
-    if (r?.error) { toast.error("Could not start your session. Please log in."); router.push("/login"); return; }
-    router.push(registered.testId ? `/exam/${registered.testId}` : "/student");
-    router.refresh();
+    try {
+      // 1) One-time token from registration (instant, no password check).
+      let r = await signIn("exam-entry", { userId: registered.userId, token: registered.token, redirect: false });
+      // 2) Fallback (e.g. the token expired while the student waited): username + password.
+      if (r?.error || !r?.ok) {
+        r = await signIn("credentials", { identifier: registered.username, password: form.password, redirect: false });
+      }
+      if (r?.error || !r?.ok) {
+        toast.error("Could not start your session. Please log in with your username and password.");
+        setLoading(false);
+        return;
+      }
+      if (!registered.testId) toast.info("No exam is open for your class right now. You can start it from your dashboard when it opens.");
+      // Full page navigation: guarantees the new session cookie is sent (a client-side
+      // router.push can be served from the router cache before the session exists).
+      window.location.assign(registered.testId ? `/exam/${registered.testId}` : "/student");
+    } catch {
+      toast.error("Network error. Please try again.");
+      setLoading(false);
+    }
   }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!verified) return toast.error("Verify your email or mobile number first");
+    if (loading) return;
+    const email = form.email.trim();
+    const mobile = cleanMobile(form.mobile);
     if (!form.name.trim()) return toast.error("Please enter your name");
     if (!form.schoolId) return toast.error("Please select your school");
     if (!form.class) return toast.error("Please select your class");
     if (showStream && !form.stream) return toast.error("Please select your stream");
-    if (showMscit && !form.mscit) return toast.error("Please tell us if you have completed MS-CIT");
-    if (!photo) return toast.error("Please upload your photo");
+    if (!form.mscit) return toast.error("Please tell us if you have completed MS-CIT");
+    if (!email && !form.mobile.trim()) return toast.error("Enter your email address or mobile number");
+    if (email && !EMAIL_RE.test(email)) return toast.error("Enter a valid email address");
+    if (form.mobile.trim() && !/^[6-9]\d{9}$/.test(mobile)) return toast.error("Enter a valid 10-digit mobile number");
     if (form.username.trim().length < 3) return toast.error("Choose a username (at least 3 characters)");
     if (form.password.length < 8) return toast.error("Password must be at least 8 characters");
     if (form.password !== form.confirmPassword) return toast.error("Passwords don't match");
@@ -136,7 +162,7 @@ export default function StudentRegisterPage() {
             <>
               <h1 className="text-xl font-bold">Thank you!</h1>
               <p className="text-muted-foreground mt-2">
-                You can log in and give the exam later. We have {registered.emailed ? "mailed you your login credentials." : "set up your login — your username is below."}
+                You can log in and give the exam later. {registered.emailed ? "We have mailed you your login credentials." : "Your username is below — keep it safe."}
               </p>
               <p className="mt-3 text-sm">Username: <b>{registered.username}</b></p>
               <Button className="mt-5 w-full" onClick={() => router.push("/login")}>Go to login</Button>
@@ -153,7 +179,7 @@ export default function StudentRegisterPage() {
                 <Button onClick={startNow} disabled={loading}>
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />} Yes, start now
                 </Button>
-                <Button variant="outline" onClick={() => setLaterDone(true)} disabled={loading}>No, I'll do it later</Button>
+                <Button variant="outline" onClick={() => setLaterDone(true)} disabled={loading}>No, I&apos;ll do it later</Button>
               </div>
             </>
           )}
@@ -162,7 +188,7 @@ export default function StudentRegisterPage() {
     );
   }
 
-  // ─── Registration form ─────────────────────────────────────────────
+  // ─── Registration form (single page, no verification) ─────────────
   return (
     <div className="min-h-screen flex flex-col justify-center py-6 px-4">
       <div className="mx-auto w-full max-w-xl">
@@ -170,255 +196,121 @@ export default function StudentRegisterPage() {
           <BrandLogo className="h-9 w-9" /> Exam Portal
         </div>
 
-        <form onSubmit={onSubmit}>
+        <form onSubmit={onSubmit} noValidate>
           <div className="mx-auto max-w-xl space-y-4">
-              <Card title="Student details" icon={UserRound}>
-                <div className="grid gap-4">
-                  <Field label="Full name" required>
-                    <IconInput icon={UserRound} value={form.name} onChange={(v) => set("name", v)} required />
-                  </Field>
-                  <Field label="School" required>
-                    <Select value={form.schoolId} onValueChange={(v) => set("schoolId", v)}>
-                      <SelectTrigger className="w-full"><School className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Select your school" /></SelectTrigger>
-                      <SelectContent>{schools.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+            <Card title="Student details" icon={UserRound}>
+              <div className="grid gap-4">
+                <Field label="Full name" required>
+                  <IconInput icon={UserRound} value={form.name} onChange={(v) => set("name", v)} autoComplete="name" />
+                </Field>
+                <Field label="School" required>
+                  <Select value={form.schoolId} onValueChange={(v) => set("schoolId", v)}>
+                    <SelectTrigger className="w-full"><School className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder={schoolsLoading ? "Loading schools…" : "Select your school"} /></SelectTrigger>
+                    <SelectContent>{schools.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </Field>
+                <div className={showStream ? "grid grid-cols-2 gap-3" : ""}>
+                  <Field label="Class" required>
+                    <Select value={form.class} onValueChange={(v) => set("class", v)}>
+                      <SelectTrigger className="w-full"><BookOpen className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Select class" /></SelectTrigger>
+                      <SelectContent>{STUDENT_CLASSES.map((c) => <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>)}</SelectContent>
                     </Select>
                   </Field>
-                  <div className={showStream ? "grid grid-cols-2 gap-3" : ""}>
-                    <Field label="Class" required>
-                      <Select value={form.class} onValueChange={(v) => set("class", v)}>
-                        <SelectTrigger className="w-full"><BookOpen className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Select class" /></SelectTrigger>
-                        <SelectContent>{STUDENT_CLASSES.map((c) => <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>)}</SelectContent>
+                  {showStream && (
+                    <Field label="Stream" required>
+                      <Select value={form.stream} onValueChange={(v) => set("stream", v)}>
+                        <SelectTrigger className="w-full"><Layers className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Stream" /></SelectTrigger>
+                        <SelectContent>{STREAMS.map((s) => <SelectItem key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</SelectItem>)}</SelectContent>
                       </Select>
                     </Field>
-                    {showStream && (
-                      <Field label="Stream" required>
-                        <Select value={form.stream} onValueChange={(v) => set("stream", v)}>
-                          <SelectTrigger className="w-full"><Layers className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Stream" /></SelectTrigger>
-                          <SelectContent>{STREAMS.map((s) => <SelectItem key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </Field>
-                    )}
-                  </div>
-                </div>
-              </Card>
-
-              {showMscit && step1 && (
-                <Card title="MS-CIT" icon={Headphones}>
-                  <Field label="Have you completed MS-CIT?" required>
-                    <YesNo value={form.mscit} onChange={(v) => set("mscit", v)} />
-                  </Field>
-                  {form.mscit === "yes" && (
-                    <div className="mt-3 max-w-[12rem]">
-                      <Field label="MS-CIT percentage (%)" required>
-                        <Input type="number" min={0} max={100} step="0.01" value={form.mscitPct} onChange={(e) => set("mscitPct", e.target.value)} required />
-                      </Field>
-                    </div>
                   )}
-                  {form.mscit === "no" && (
-                    <div className="mt-3">
-                      <Field label="Interested in MS-CIT? Our advisor will call you.">
-                        <YesNo value={form.mscitInterested} onChange={(v) => set("mscitInterested", v)} />
-                      </Field>
-                    </div>
-                  )}
-                </Card>
-              )}
-
-              {/* Step 2 — contact details (after student details) */}
-              {step1 && step2 && (
-                <VerifyContact verified={verified} onVerified={setVerified} email={email} setEmail={setEmail} mobile={mobile} setMobile={setMobile} />
-              )}
-
-              {/* Step 3 — photo (after contact verified) */}
-              {step1 && step2 && verified && (
-              <Card title="Your photo" icon={Camera}>
-                <div className="flex items-center gap-4">
-                  <div className="h-16 w-16 rounded-full bg-muted overflow-hidden flex items-center justify-center border shrink-0">
-                    {photoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={photoUrl} alt="Your photo" className="h-full w-full object-cover" />
-                    ) : (
-                      <Upload className="h-5 w-5 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <Label htmlFor="photo">Upload a clear photo <span className="text-destructive">*</span></Label>
-                    <Input id="photo" type="file" accept="image/jpeg,image/png,image/webp" className="mt-2" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
-                  </div>
                 </div>
-              </Card>
-              )}
+              </div>
+            </Card>
 
-              {/* Step 4 — login (after photo) */}
-              {step1 && step2 && verified && photo && (
-              <Card title="Create your login" icon={Lock}>
-                <div className="grid gap-3">
-                  <Field label="Username" required>
-                    <IconInput icon={UserRound} value={form.username} onChange={(v) => set("username", v.toLowerCase())} placeholder="e.g. riya.patil" required />
+            <Card title="Contact details" icon={Contact}>
+              <p className="text-sm text-muted-foreground mb-3">Enter your email address <b>or</b> your mobile number (either one is enough).</p>
+              <div className="grid gap-4">
+                <Field label="Email Address">
+                  <IconInput icon={Mail} type="email" value={form.email} onChange={(v) => set("email", v)} placeholder="Enter email address" autoComplete="email" />
+                </Field>
+                <Field label="Mobile Number">
+                  <IconInput icon={Phone} type="tel" value={form.mobile} onChange={(v) => set("mobile", v)} placeholder="Enter 10-digit mobile number" autoComplete="tel" />
+                </Field>
+              </div>
+            </Card>
+
+            {/* Asked for every class */}
+            <Card title="MS-CIT" icon={Headphones}>
+              <Field label="Have you completed MS-CIT?" required>
+                <YesNo value={form.mscit} onChange={(v) => set("mscit", v)} />
+              </Field>
+              {form.mscit === "yes" && (
+                <div className="mt-3 max-w-[14rem]">
+                  <Field label="MS-CIT percentage (%) — optional">
+                    <Input type="number" inputMode="decimal" min={0} max={100} step="0.01" value={form.mscitPct} onChange={(e) => set("mscitPct", e.target.value)} placeholder="e.g. 78.5" />
                   </Field>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Password" required>
-                      <IconInput icon={Lock} type="password" value={form.password} onChange={(v) => set("password", v)} required />
-                    </Field>
-                    <Field label="Confirm" required>
-                      <IconInput icon={Lock} type="password" value={form.confirmPassword} onChange={(v) => set("confirmPassword", v)} required />
-                    </Field>
-                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">8+ characters with an uppercase letter, a number and a special character.</p>
-              </Card>
               )}
+              {form.mscit === "no" && (
+                <div className="mt-3">
+                  <Field label="Interested in MS-CIT? Our advisor will call you.">
+                    <YesNo value={form.mscitInterested} onChange={(v) => set("mscitInterested", v)} />
+                  </Field>
+                </div>
+              )}
+            </Card>
 
-              {/* Step 5 — terms + register (after login details) */}
-              {step1 && step2 && verified && photo && form.username.trim().length >= 3 && form.password && form.confirmPassword && (<>
-              <label className="flex items-start gap-2 text-sm px-1">
-                <Checkbox checked={form.acceptTerms} onCheckedChange={(v) => set("acceptTerms", Boolean(v))} className="mt-0.5" />
-                <span>I accept the <TermsDialog />.</span>
-              </label>
+            <Card title="Your photo (optional)" icon={Camera}>
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-16 rounded-full bg-muted overflow-hidden flex items-center justify-center border shrink-0">
+                  {photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={photoUrl} alt="Your photo" className="h-full w-full object-cover" />
+                  ) : (
+                    <Upload className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <Label htmlFor="photo">Upload a clear photo</Label>
+                  <Input id="photo" type="file" accept="image/jpeg,image/png,image/webp" className="mt-2" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+                </div>
+              </div>
+            </Card>
 
-              <Button type="submit" className="w-full" size="lg" disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                Register
-              </Button>
-              <p className="text-center text-sm text-muted-foreground">
-                Already registered? <a href="/login" className="text-primary font-medium hover:underline">Log in</a>
-              </p>
-              </>)}
+            <Card title="Create your login" icon={Lock}>
+              <div className="grid gap-3">
+                <Field label="Username" required>
+                  <IconInput icon={UserRound} value={form.username} onChange={(v) => set("username", v.toLowerCase())} placeholder="e.g. riya.patil" autoComplete="username" />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Password" required>
+                    <IconInput icon={Lock} type="password" value={form.password} onChange={(v) => set("password", v)} autoComplete="new-password" />
+                  </Field>
+                  <Field label="Confirm" required>
+                    <IconInput icon={Lock} type="password" value={form.confirmPassword} onChange={(v) => set("confirmPassword", v)} autoComplete="new-password" />
+                  </Field>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">8+ characters with an uppercase letter, a lowercase letter, a number and a special character.</p>
+            </Card>
+
+            <label className="flex items-start gap-2 text-sm px-1">
+              <Checkbox checked={form.acceptTerms} onCheckedChange={(v) => set("acceptTerms", Boolean(v))} className="mt-0.5" />
+              <span>I accept the <TermsDialog />.</span>
+            </label>
+
+            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+              Register
+            </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              Already registered? <a href="/login" className="text-primary font-medium hover:underline">Log in</a>
+            </p>
           </div>
         </form>
       </div>
     </div>
-  );
-}
-
-/** Collect email and/or mobile; verifying either ONE by OTP is enough. */
-function VerifyContact({ verified, onVerified, email, setEmail, mobile, setMobile }: {
-  verified: Verified | null; onVerified: (v: Verified | null) => void;
-  email: string; setEmail: (v: string) => void; mobile: string; setMobile: (v: string) => void;
-}) {
-  const [active, setActive] = useState<VType | null>(null);
-  const [otp, setOtp] = useState("");
-  const [busy, setBusy] = useState<"send" | "confirm" | null>(null);
-  const [cool, setCool] = useState(0);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
-  function startCooldown(sec: number) {
-    setCool(sec);
-    if (timer.current) clearInterval(timer.current);
-    timer.current = setInterval(() => setCool((c) => (c <= 1 ? (clearInterval(timer.current!), 0) : c - 1)), 1000);
-  }
-
-  async function send(type: VType) {
-    const contact = type === "MOBILE" ? mobile : email;
-    setBusy("send");
-    try {
-      const res = await fetch("/api/public/verify/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, contact }) });
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(json.error || "Could not send the code");
-        if (json.retryAfter) startCooldown(json.retryAfter);
-        return;
-      }
-      if (json.data.alreadyVerified) {
-        onVerified({ type, value: contact.trim(), proof: json.data.proof, already: true, accountExists: !!json.data.accountExists });
-        setActive(null);
-        return;
-      }
-      setActive(type);
-      setOtp("");
-      startCooldown(45);
-      toast.success(type === "MOBILE" ? "Code sent by SMS" : "Code sent to your email");
-      if (json.data.devMode) toast.info("Dev mode: the code is printed in the server console");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function confirm() {
-    if (!active) return;
-    const contact = active === "MOBILE" ? mobile : email;
-    setBusy("confirm");
-    try {
-      const res = await fetch("/api/public/verify/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: active, contact, code: otp }) });
-      const json = await res.json();
-      if (!res.ok) return toast.error(json.error || "Verification failed");
-      onVerified({ type: active, value: contact.trim(), proof: json.data.proof, already: !!json.data.alreadyVerified, accountExists: !!json.data.accountExists });
-      setActive(null);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  if (verified) {
-    const Icon = verified.type === "MOBILE" ? Phone : Mail;
-    return (
-      <Card title="Contact details" icon={BadgeCheck}>
-        <div className="flex items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 p-3 text-emerald-800 dark:text-emerald-300">
-          <BadgeCheck className="h-6 w-6 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="font-medium flex items-center gap-1.5"><Icon className="h-4 w-4" /> <span className="truncate">{verified.value}</span></p>
-            <p className="text-sm">{verified.already ? "Already verified" : "Verified"}.</p>
-          </div>
-          <Button type="button" variant="ghost" size="sm" onClick={() => { onVerified(null); setOtp(""); }}>
-            <Pencil className="h-4 w-4" /> Change
-          </Button>
-        </div>
-        <div className="mt-4">
-          {verified.type === "EMAIL" ? (
-            <Field label="Mobile Number (optional)">
-              <IconInput icon={Phone} type="tel" value={mobile} onChange={setMobile} placeholder="Enter 10-digit mobile number" />
-            </Field>
-          ) : (
-            <Field label="Email Address (optional)">
-              <IconInput icon={Mail} type="email" value={email} onChange={setEmail} placeholder="Enter email address" />
-            </Field>
-          )}
-        </div>
-      </Card>
-    );
-  }
-
-  const otpBox = (type: VType) =>
-    active === type && (
-      <div className="mt-3 space-y-2">
-        <Label>Enter the 6-digit code</Label>
-        <div className="flex gap-2">
-          <Input inputMode="numeric" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))} placeholder="••••••" className="font-mono tracking-[0.4em] text-center" />
-          <Button type="button" onClick={confirm} disabled={otp.length !== 6 || busy === "confirm"}>
-            {busy === "confirm" ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />} Verify
-          </Button>
-        </div>
-        <button type="button" disabled={cool > 0 || busy === "send"} onClick={() => send(type)} className="text-xs text-primary disabled:text-muted-foreground inline-flex items-center gap-1">
-          <RefreshCw className="h-3 w-3" /> {cool > 0 ? `Resend code in ${cool}s` : "Resend code"}
-        </button>
-      </div>
-    );
-
-  return (
-    <Card title="Contact details" icon={BadgeCheck}>
-      <p className="text-sm text-muted-foreground mb-4">Enter your email address <b>or</b> mobile number and verify it with an OTP to continue.</p>
-
-      <Field label="Email Address">
-        <IconInput icon={Mail} type="email" value={email} onChange={(v) => { setEmail(v); if (active === "EMAIL") setActive(null); }} placeholder="Enter email address" />
-      </Field>
-      <Button type="button" className="w-full mt-2" onClick={() => send("EMAIL")} disabled={busy === "send" || !email.includes("@") || (active === "EMAIL" && cool > 0)}>
-        {busy === "send" && active === "EMAIL" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Verify Email Address
-      </Button>
-      {otpBox("EMAIL")}
-
-      <div className="flex items-center gap-3 my-4 text-xs font-medium text-muted-foreground">
-        <span className="h-px flex-1 bg-border" /> OR <span className="h-px flex-1 bg-border" />
-      </div>
-
-      <Field label="Mobile Number">
-        <IconInput icon={Phone} type="tel" value={mobile} onChange={(v) => { setMobile(v); if (active === "MOBILE") setActive(null); }} placeholder="Enter 10-digit mobile number" />
-      </Field>
-      <Button type="button" variant="outline" className="w-full mt-2" onClick={() => send("MOBILE")} disabled={busy === "send" || mobile.replace(/\D/g, "").length < 10 || (active === "MOBILE" && cool > 0)}>
-        {busy === "send" && active !== "EMAIL" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />} Verify Mobile Number
-      </Button>
-      {otpBox("MOBILE")}
-    </Card>
   );
 }
 
@@ -452,13 +344,13 @@ function Field({ label, required, children }: { label: string; required?: boolea
   );
 }
 
-function IconInput({ icon: Icon, value, onChange, placeholder, type = "text", required }: {
-  icon: typeof UserRound; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; required?: boolean;
+function IconInput({ icon: Icon, value, onChange, placeholder, type = "text", autoComplete = "off" }: {
+  icon: typeof UserRound; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; autoComplete?: string;
 }) {
   return (
     <div className="relative">
       <Icon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-      <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} required={required} autoComplete="off" className="pl-9" />
+      <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} autoComplete={autoComplete} className="pl-9" />
     </div>
   );
 }

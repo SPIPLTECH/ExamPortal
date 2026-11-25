@@ -52,6 +52,9 @@ const MSCITEnquirySchema = new Schema<IMSCITEnquiry>(
   { timestamps: true }
 );
 
+MSCITEnquirySchema.index({ center: 1, createdAt: -1 });
+MSCITEnquirySchema.index({ createdAt: -1 });
+
 export const MSCITEnquiry: Model<IMSCITEnquiry> =
   (models.MSCITEnquiry as Model<IMSCITEnquiry>) ||
   model<IMSCITEnquiry>("MSCITEnquiry", MSCITEnquirySchema);

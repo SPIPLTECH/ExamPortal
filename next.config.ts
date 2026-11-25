@@ -5,11 +5,15 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
-  // This dev box has limited free RAM; cap static-generation workers so the
-  // build doesn't spawn one worker per core and run out of memory.
+  // (experimental.cpus/workerThreads below cap static-generation workers so a
+  // low-RAM box doesn't run out of memory during `next build`.)
+  poweredByHeader: false,
+  compress: true,
+  // Smaller client bundles: only pull the icons / primitives that are actually used.
   experimental: {
     cpus: 1,
     workerThreads: false,
+    optimizePackageImports: ["lucide-react", "radix-ui", "sonner"],
   },
   // Cloudinary-hosted images.
   images: {

@@ -157,9 +157,9 @@ Photo auto-captures only when: one face in the circle, both ears visible, both e
 good light, plain background. Saved to the student's profile + attempt, shown in exam room (top-left),
 ALC students/results and admin students. Re-run `npm run seed` to rename the admin to "Super Admin".
 
-## Contact verification (OTP)
-Student verifies ONE of mobile/email (server-side OTP, hashed, 10-min expiry, 5 tries, resend cooldown).
-Already-verified contacts show "Already verified". Email: Gmail SMTP + App Password. Mobile: APITxT
-(`API_TXT`, `APITXT_AUTH_KEY`, `APITXT_SENDER_ID`, ...) — adapter is `src/lib/sms.ts` (`buildParams()`).
-If SMTP/APITxT are not configured, in dev the OTP is printed in the server console.
-MS-CIT (class 8-12): completed → %, not completed → interested? → enquiry goes to the ALC center (/alc/enquiries) and admin.
+## Student registration (no verification)
+Students give an **email OR a mobile number** (either one is enough, both are fine) — there is no OTP or
+email/phone verification. "Have you completed MS-CIT?" is asked in **every class**; the MS-CIT percentage and
+the profile photo are **optional**. Students who are not MS-CIT-certified and say they are interested are
+written to the **MS-CIT Enquiries** tab (name, mobile, email, class, school) for both their ALC center and the admin.
+

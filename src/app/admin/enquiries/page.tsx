@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Download, Headphones } from "lucide-react";
+import { Loader2, Download, Headphones, Phone, Mail, School, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -18,6 +18,8 @@ import { MSCIT_ENQUIRY_STATUSES } from "@/lib/constants";
 type Enquiry = {
   _id: string;
   name: string;
+  mobile: string | null;
+  email: string | null;
   contact: string;
   class: number;
   school: string | null;
@@ -102,8 +104,13 @@ export default function EnquiriesPage() {
                   <p className="font-medium">{e.name}</p>
                   <Badge className={STATUS_COLOR[e.status]}>{e.status}</Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {e.contact} · Class {e.class}{e.school ? ` · ${e.school}` : ""}{e.center ? ` · Center: ${e.center}` : ""} · {new Date(e.createdAt).toLocaleDateString()}
+                <p className="text-sm text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                  {(e.mobile || (!e.email && e.contact)) && <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5" />{e.mobile || e.contact}</span>}
+                  {e.email && <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{e.email}</span>}
+                  <span>Class {e.class}</span>
+                  {e.school && <span className="inline-flex items-center gap-1"><School className="h-3.5 w-3.5" />{e.school}</span>}
+                  {e.center && <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" />{e.center}</span>}
+                  <span>{new Date(e.createdAt).toLocaleDateString("en-IN")}</span>
                 </p>
               </div>
               <Select value={e.status} onValueChange={(v) => setStatus(e._id, v)}>

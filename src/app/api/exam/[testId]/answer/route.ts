@@ -1,14 +1,19 @@
 import { connectDB } from "@/lib/db";
 import { ExamAttempt } from "@/models/ExamAttempt";
 import { ExamResponse } from "@/models/ExamResponse";
-import { requireStudentContext } from "@/lib/student";
-import { finalizeAttempt, isExpired } from "@/lib/exam-engine";
+import { requireStudent } from "@/lib/auth-helpers";
+import { finalizeAttempt } from "@/lib/exam-engine";
 import { saveAnswerSchema } from "@/lib/validations";
 import { ok, fail, parseBody, handleRoute } from "@/lib/api";
 import type { ResponseStatus } from "@/lib/constants";
 
+/**
+ * Hot path: called on every option click. Kept to the minimum work —
+ * JWT-only auth (no profile lookup), a lean projection of the attempt (no question
+ * text/options pulled over the wire) and a single upsert.
+ */
 export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
-  const { error, ctx } = await requireStudentContext();
+  const { error, session } = await requireStudent();
   if (error) return error;
   const { testId } = await (ctxArg as { params: Promise<{ testId: string }> }).params;
 
@@ -17,35 +22,35 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   const { questionId, selectedOption, markedForReview } = parsed.data;
 
   await connectDB();
-  const attempt = await ExamAttempt.findOne({ test: testId, student: ctx.user.id });
+  const attempt = await ExamAttempt.findOne({ test: testId, student: session.user.id })
+    .select("status deadlineAt questions.question")
+    .lean();
   if (!attempt) return fail("No active attempt", 404);
   if (attempt.status !== "IN_PROGRESS") return fail("This exam is no longer active", 409);
 
   // Server-authoritative deadline: reject (and auto-submit) late saves.
-  if (isExpired(attempt)) {
-    await finalizeAttempt(attempt, "TIMED_OUT");
+  if (new Date() > new Date(attempt.deadlineAt)) {
+    const full = await ExamAttempt.findById(attempt._id);
+    if (full && full.status === "IN_PROGRESS") await finalizeAttempt(full, "TIMED_OUT");
     return fail("Time is up — your exam was submitted automatically", 409);
   }
 
   // The question must belong to this frozen attempt.
-  const belongs = attempt.questions.some((q) => String(q.question) === questionId);
-  if (!belongs) return fail("Question not part of this attempt", 400);
+  if (!attempt.questions.some((q) => String(q.question) === questionId)) {
+    return fail("Question not part of this attempt", 400);
+  }
 
   let status: ResponseStatus = "UNATTEMPTED";
   if (selectedOption && markedForReview) status = "ANSWERED_MARKED";
   else if (selectedOption) status = "ATTEMPTED";
   else if (markedForReview) status = "MARKED";
 
-  await ExamResponse.findOneAndUpdate(
+  await ExamResponse.updateOne(
     { attempt: attempt._id, question: questionId },
     {
-      attempt: attempt._id,
-      question: questionId,
-      student: ctx.user.id,
-      selectedOption: selectedOption ?? null,
-      status,
+      $set: { selectedOption: selectedOption ?? null, status, student: session.user.id },
     },
-    { upsert: true, new: true }
+    { upsert: true }
   );
 
   return ok({ status });

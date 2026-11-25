@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Clock, Flag, Eraser, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Loader2, Flag, Eraser, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,6 +22,7 @@ import { PreExamCheck } from "@/components/proctoring/pre-exam-check";
 import { FullscreenGate } from "@/components/proctoring/fullscreen-gate";
 import { sendProctoringEvent } from "@/lib/proctoring/service";
 import { releaseExamLock } from "@/lib/proctoring/examLock";
+import { ExamTimer } from "@/components/exam-timer";
 import { ShieldCheck, Smartphone, UserX, Users, Building2 } from "lucide-react";
 
 type ClientQuestion = {
@@ -54,6 +55,8 @@ const STATUS_COLOR: Record<RespStatus, string> = {
   ANSWERED_MARKED: "bg-purple-600 text-white",
 };
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export function ExamRoom({ testId }: { testId: string }) {
   const router = useRouter();
   const [state, setState] = useState<AttemptState | null>(null);
@@ -61,11 +64,9 @@ export function ExamRoom({ testId }: { testId: string }) {
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string | null>>({});
   const [marks, setMarks] = useState<Record<string, boolean>>({});
-  const [remaining, setRemaining] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [finished, setFinished] = useState(false);
-  const endLocalRef = useRef<number>(0);
   const submittedRef = useRef(false);
 
   // ── Proctoring ─────────────────────────────────────────
@@ -164,7 +165,14 @@ export function ExamRoom({ testId }: { testId: string }) {
 
   // Start / resume. A multi-language test first asks the student which language
   // to use; the question paper is only built (and frozen) after that choice.
-  const [langChoices, setLangChoices] = useState<{ name: string; languages: string[] } | null>(null);
+  type Intro = {
+    name: string; description: string | null; instructions: string | null; rules: string | null;
+    specialConditions: string | null; languages: string[]; duration: number; totalQuestions: number;
+    totalMarks: number; passingMarks: number; passingPercentage: number; negativeMarking: number;
+    proctored: boolean; hasAttempt: boolean;
+  };
+  const [langChoices, setLangChoices] = useState<Intro | null>(null);
+  const [pickedLang, setPickedLang] = useState<string | null>(null);
   const [startingLang, setStartingLang] = useState<string | null>(null);
 
   const startExam = useCallback(
@@ -200,10 +208,6 @@ export function ExamRoom({ testId }: { testId: string }) {
       });
       setAnswers(a);
       setMarks(m);
-      // Clock-skew-aware deadline.
-      const skew = Date.now() - new Date(s.serverNow).getTime();
-      endLocalRef.current = new Date(s.deadlineAt).getTime() + skew;
-      setRemaining(Math.max(0, Math.floor((endLocalRef.current - Date.now()) / 1000)));
       setLoading(false);
     },
     [testId, router]
@@ -214,9 +218,11 @@ export function ExamRoom({ testId }: { testId: string }) {
       try {
         const res = await fetch(`/api/exam/${testId}/meta`);
         const json = await res.json();
-        const meta = res.ok ? (json.data as { name: string; languages: string[]; hasAttempt: boolean }) : null;
-        if (meta && !meta.hasAttempt && meta.languages.length > 1) {
-          setLangChoices({ name: meta.name, languages: meta.languages });
+        const meta = res.ok ? (json.data as Intro) : null;
+        // New attempt: always show the center's instructions & rules first.
+        if (meta && !meta.hasAttempt) {
+          setLangChoices(meta);
+          if (meta.languages.length === 1) setPickedLang(meta.languages[0]!);
           setLoading(false);
           return;
         }
@@ -227,62 +233,104 @@ export function ExamRoom({ testId }: { testId: string }) {
     })();
   }, [testId, startExam]);
 
+  // ── Answer saving: per-question, latest-wins, retried until it lands ──
+  const latestRef = useRef(new Map<string, { selectedOption: string | null; markedForReview: boolean }>());
+  const inflightRef = useRef(new Set<string>());
+
+  const flushAnswer = useCallback(
+    async (questionId: string) => {
+      if (inflightRef.current.has(questionId)) return; // the running loop will pick up the newest value
+      inflightRef.current.add(questionId);
+      try {
+        while (latestRef.current.has(questionId) && !endedRef.current) {
+          const payload = latestRef.current.get(questionId)!;
+          latestRef.current.delete(questionId);
+          try {
+            const res = await fetch(`/api/exam/${testId}/answer`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ questionId, ...payload }),
+            });
+            if (res.status === 409) {
+              const j = await res.json().catch(() => ({}));
+              toast.error(j.error || "Exam ended");
+              endedRef.current = true;
+              router.replace("/exam/done");
+              return;
+            }
+            if (res.status >= 500 || res.status === 429) throw new Error(`HTTP ${res.status}`);
+            // other 4xx: nothing a retry can fix
+          } catch {
+            // Network blip / server hiccup: keep the value (unless a newer one arrived) and retry.
+            if (!latestRef.current.has(questionId)) latestRef.current.set(questionId, payload);
+            await sleep(2000);
+          }
+        }
+      } finally {
+        inflightRef.current.delete(questionId);
+      }
+    },
+    [testId, router]
+  );
+
+  const saveAnswer = useCallback(
+    (questionId: string, selectedOption: string | null, markedForReview: boolean) => {
+      latestRef.current.set(questionId, { selectedOption, markedForReview });
+      void flushAnswer(questionId);
+    },
+    [flushAnswer]
+  );
+
+  /** Wait (briefly) for queued saves so the last answers are not lost on submit. */
+  const settleSaves = useCallback(async (maxMs: number) => {
+    const t0 = Date.now();
+    while ((latestRef.current.size > 0 || inflightRef.current.size > 0) && Date.now() - t0 < maxMs) {
+      await sleep(100);
+    }
+  }, []);
+
   const doSubmit = useCallback(
     async (auto = false) => {
       if (submittedRef.current) return;
       submittedRef.current = true;
       setSubmitting(true);
-      const res = await fetch(`/api/exam/${testId}/submit`, { method: "POST" });
-      const json = await res.json();
-      setSubmitting(false);
-      if (!res.ok) {
-        toast.error(json.error || "Submit failed");
-        submittedRef.current = false;
-        return;
-      }
-      toast.success(auto ? "Time up — exam submitted" : "Exam submitted");
-      endedRef.current = true; // stop proctoring side-effects (no fullscreen gate after submit)
-      setFinished(true);
-      releaseExamLock();
-      router.replace(`/exam/done`);
-    },
-    [testId, router]
-  );
+      await settleSaves(auto ? 1500 : 4000);
 
-  // Timer tick.
-  useEffect(() => {
-    if (loading) return;
-    const t = setInterval(() => {
-      const left = Math.max(0, Math.floor((endLocalRef.current - Date.now()) / 1000));
-      setRemaining(left);
-      if (left <= 0) {
-        clearInterval(t);
-        doSubmit(true);
-      }
-    }, 1000);
-    return () => clearInterval(t);
-  }, [loading, doSubmit]);
-
-  const saveAnswer = useCallback(
-    async (questionId: string, selectedOption: string | null, markedForReview: boolean) => {
-      try {
-        const res = await fetch(`/api/exam/${testId}/answer`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ questionId, selectedOption, markedForReview }),
-        });
-        if (res.status === 409) {
-          const j = await res.json();
-          toast.error(j.error || "Exam ended");
-          router.replace("/exam/done");
+      // A timed-out exam MUST end: keep retrying so a network blip can never leave the
+      // student stuck on 00:00. A manual submit gives up after 3 tries so they can retry.
+      const maxTries = auto ? 60 : 3;
+      for (let attempt = 0; attempt < maxTries; attempt++) {
+        try {
+          const res = await fetch(`/api/exam/${testId}/submit`, { method: "POST" });
+          const json = await res.json().catch(() => ({}));
+          // 409 = "already submitted / time is up": the server has it, so we are done.
+          if (res.ok || res.status === 409) {
+            toast.success(auto ? "Time up — exam submitted" : "Exam submitted");
+            endedRef.current = true; // stop proctoring side-effects (no fullscreen gate after submit)
+            setFinished(true);
+            releaseExamLock();
+            router.replace(`/exam/done`);
+            return;
+          }
+          if (res.status < 500 && res.status !== 429 && res.status !== 408) {
+            toast.error(json.error || "Submit failed");
+            break;
+          }
+        } catch {
+          /* network error → retry */
         }
-      } catch {
-        // Network blip — keep local state; will retry on next action.
-        toast.error("Saving… check your connection");
+        await sleep(Math.min(5000, 1000 * (attempt + 1)));
       }
+      setSubmitting(false);
+      submittedRef.current = false;
+      if (!auto) toast.error("Could not submit. Check your connection and try again.");
     },
-    [testId, router]
+    [testId, router, settleSaves]
   );
+
+  const handleExpire = useCallback(() => {
+    void doSubmit(true);
+  }, [doSubmit]);
 
   const q = state?.questions[idx];
 
@@ -332,33 +380,83 @@ export function ExamRoom({ testId }: { testId: string }) {
   }
 
   if (langChoices && !state) {
+    const m = langChoices;
     const label: Record<string, string> = { en: "English", mr: "मराठी (Marathi)" };
+    const multi = m.languages.length > 1;
+    const canStart = startingLang === null && (!multi || !!pickedLang);
+    const Block = ({ title, text }: { title: string; text: string | null }) =>
+      text ? (
+        <section>
+          <h2 className="font-semibold mb-1">{title}</h2>
+          <p className="text-sm text-slate-700 whitespace-pre-wrap">{text}</p>
+        </section>
+      ) : null;
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-        <div className="w-full max-w-md rounded-xl border bg-white p-8 shadow-sm text-center space-y-5">
-          <h1 className="text-xl font-semibold">{langChoices.name}</h1>
-          <p className="text-sm text-muted-foreground">
-            Choose the language for your question paper. You cannot change it once the exam starts.
-            <br />
-            परीक्षेसाठी भाषा निवडा. परीक्षा सुरू झाल्यावर भाषा बदलता येणार नाही.
-          </p>
-          <div className="space-y-3">
-            {langChoices.languages.map((l) => (
-              <Button
-                key={l}
-                size="lg"
-                className="w-full"
-                disabled={startingLang !== null}
-                onClick={() => {
-                  setStartingLang(l);
-                  void startExam(l);
-                }}
-              >
-                {startingLang === l && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {label[l] ?? l}
-              </Button>
-            ))}
+      <div className="min-h-screen bg-slate-50 p-4 flex justify-center">
+        <div className="w-full max-w-2xl my-4 rounded-xl border bg-white p-6 shadow-sm space-y-5">
+          <div className="text-center">
+            <h1 className="text-xl font-semibold">{m.name}</h1>
+            {m.description && <p className="text-sm text-muted-foreground mt-1">{m.description}</p>}
           </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+            <Stat label="Time" value={`${m.duration} min`} />
+            <Stat label="Questions" value={String(m.totalQuestions)} />
+            <Stat label="Total marks" value={String(m.totalMarks)} />
+            <Stat
+              label="Passing"
+              value={[m.passingMarks > 0 ? `${m.passingMarks} marks` : "", m.passingPercentage > 0 ? `${m.passingPercentage}%` : ""].filter(Boolean).join(" / ") || "—"}
+            />
+          </div>
+          {m.negativeMarking > 0 && (
+            <p className="text-sm rounded-md bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2">
+              Negative marking: −{m.negativeMarking} for each wrong answer.
+            </p>
+          )}
+
+          <Block title="Instructions" text={m.instructions} />
+          <Block title="Rules" text={m.rules} />
+          <Block title="Special conditions" text={m.specialConditions} />
+          {m.proctored && (
+            <p className="text-sm text-slate-700">
+              This is a proctored exam: your camera will be used, and you must stay in full-screen. Switching tabs or leaving the screen gives warnings.
+            </p>
+          )}
+          <p className="text-sm text-slate-700">The timer starts as soon as you press <b>Start exam</b> and cannot be paused. The exam can be attempted only once.</p>
+
+          {multi && (
+            <section>
+              <h2 className="font-semibold mb-1">Choose your language / भाषा निवडा</h2>
+              <p className="text-xs text-muted-foreground mb-2">You cannot change it once the exam starts. परीक्षा सुरू झाल्यावर भाषा बदलता येणार नाही.</p>
+              <div className="flex flex-wrap gap-2">
+                {m.languages.map((l) => (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => setPickedLang(l)}
+                    className={`flex-1 min-w-[8rem] rounded-lg border-2 py-2.5 text-sm font-medium transition-colors ${
+                      pickedLang === l ? "border-primary bg-primary/10 text-primary" : "hover:border-primary/40"
+                    }`}
+                  >
+                    {label[l] ?? l}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <Button
+            size="lg"
+            className="w-full"
+            disabled={!canStart}
+            onClick={() => {
+              setStartingLang(pickedLang ?? "");
+              void startExam(pickedLang ?? undefined);
+            }}
+          >
+            {startingLang !== null && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {multi && !pickedLang ? "Select a language to start" : "Start exam"}
+          </Button>
         </div>
       </div>
     );
@@ -404,9 +502,6 @@ export function ExamRoom({ testId }: { testId: string }) {
   }
 
   const fullscreenViolation = proctoringEnabled && proctorReady && !monitor.isFullscreen && !finished;
-  const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
-  const ss = String(remaining % 60).padStart(2, "0");
-  const low = remaining <= 60;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -420,14 +515,7 @@ export function ExamRoom({ testId }: { testId: string }) {
           </p>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <div
-            className={`flex items-center gap-2 font-mono font-semibold px-3 py-1.5 rounded-lg ${
-              low ? "bg-red-100 text-red-700 animate-pulse" : "bg-slate-100 text-slate-800"
-            }`}
-          >
-            <Clock className="h-4 w-4" />
-            {mm}:{ss}
-          </div>
+          <ExamTimer deadlineAt={state.deadlineAt} serverNow={state.serverNow} onExpire={handleExpire} />
           <Button size="sm" onClick={() => setConfirmOpen(true)}>
             Submit
           </Button>
@@ -591,6 +679,15 @@ export function ExamRoom({ testId }: { testId: string }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border bg-slate-50 p-3">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="font-semibold mt-0.5">{value}</p>
     </div>
   );
 }

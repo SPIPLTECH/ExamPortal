@@ -2,7 +2,7 @@ import { connectDB } from "@/lib/db";
 import { Test, type ITest } from "@/models/Test";
 import { TestEnrollment } from "@/models/TestEnrollment";
 import { ExamAttempt } from "@/models/ExamAttempt";
-import { requireStudentContext, examLive } from "@/lib/student";
+import { requireStudentContext, examLive, eligibleTestFilter } from "@/lib/student";
 import { freezeQuestionSet, projectAttempt, finalizeAttempt, isExpired } from "@/lib/exam-engine";
 import { ok, fail, handleRoute } from "@/lib/api";
 import { audit, clientIp } from "@/lib/audit";
@@ -17,8 +17,13 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   const { testId } = await (ctxArg as { params: Promise<{ testId: string }> }).params;
 
   await connectDB();
-  const me = await User.findById(ctx.user.id).select("name image").lean();
-  const test = await Test.findById(testId).lean<ITest>();
+  // Independent reads go out together instead of one after another.
+  const [me, test, existingEnrollment, existing] = await Promise.all([
+    User.findById(ctx.user.id).select("name image").lean(),
+    Test.findById(testId).lean<ITest>(),
+    TestEnrollment.findOne({ test: testId, student: ctx.user.id, status: "ENROLLED" }),
+    ExamAttempt.findOne({ test: testId, student: ctx.user.id }),
+  ]);
   if (!test) return fail("Test not found", 404);
   const centerDoc = await ALCCenter.findById(test.center).select("name").lean();
   const withStudent = <T extends object>(o: T) => ({
@@ -27,14 +32,9 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
     centerName: centerDoc?.name ?? null,
   });
 
-  let enrollment = await TestEnrollment.findOne({
-    test: testId,
-    student: ctx.user.id,
-    status: "ENROLLED",
-  });
+  let enrollment = existingEnrollment;
   if (!enrollment) {
     // Registered students are auto-enrolled for tests of their class/center.
-    const { eligibleTestFilter } = await import("@/lib/student");
     const eligible = await Test.exists({ _id: testId, ...eligibleTestFilter(ctx.profile) });
     if (!eligible) return fail("This exam is not available for you", 403);
     enrollment = await TestEnrollment.findOneAndUpdate(
@@ -45,7 +45,6 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   }
 
   // Existing attempt → resume if in progress, otherwise NO RETAKE.
-  const existing = await ExamAttempt.findOne({ test: testId, student: ctx.user.id });
   if (existing) {
     if (existing.status === "IN_PROGRESS") {
       if (isExpired(existing)) {

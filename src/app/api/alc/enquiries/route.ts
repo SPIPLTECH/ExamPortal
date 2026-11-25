@@ -8,7 +8,7 @@ export const GET = handleRoute(async () => {
   const { error, ctx } = await requireAlcContext();
   if (error) return error;
   await connectDB();
-  const items = await MSCITEnquiry.find({ center: ctx.centerId }).sort({ createdAt: -1 }).lean();
+  const items = await MSCITEnquiry.find({ center: ctx.centerId }).sort({ createdAt: -1 }).limit(2000).lean();
   return ok({
     items: items.map((e) => ({
       _id: String(e._id),
