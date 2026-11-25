@@ -101,7 +101,7 @@ export const POST = handleRoute(async (req: Request) => {
     .select("schedule")
     .lean<ITest[]>();
   if (tests.length === 0) {
-    return fail("Is School ke liye abhi koi exam available nahi hai. Please try again later.", 404);
+    return fail("No exams are available for this school right now. Please try again later.", 404);
   }
 
   // Password hash + (optional) photo upload run together.
