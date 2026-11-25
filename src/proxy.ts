@@ -37,6 +37,8 @@ export default auth((req) => {
   res.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
 
   const { pathname } = req.nextUrl;
+  // Logged-in pages must never be cached (Back button after logout, shared computers).
+  if (!pathname.startsWith("/api/auth")) res.headers.set("Cache-Control", "no-store, max-age=0");
   const user = req.auth?.user as { role?: string } | undefined;
 
   // Home is the public student entry form. Staff go straight to their dashboards.

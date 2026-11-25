@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { logout } from "@/lib/logout";
 import {
   LayoutDashboard,
   Users,
@@ -178,7 +178,7 @@ export function AppShell({
                     <Link href="/student/account"><UserCircle className="h-4 w-4" /> My Account</Link>
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })} variant="destructive">
+                <DropdownMenuItem onClick={() => logout("/login")} variant="destructive">
                   <LogOut className="h-4 w-4" /> Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>

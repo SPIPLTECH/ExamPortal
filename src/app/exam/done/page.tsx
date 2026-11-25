@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/session";
 import { connectDB } from "@/lib/db";
 import { ExamResult } from "@/models";
 import { Button } from "@/components/ui/button";
+import { ExitButton } from "./exit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ export default async function ExamDonePage() {
         <div className="mt-6 flex flex-col gap-2">
           {user ? (
             <>
-              <Button asChild><Link href="/student">Close</Link></Button>
+              <ExitButton label="Close" />
             </>
           ) : (
             <Button asChild>
