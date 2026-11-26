@@ -527,9 +527,6 @@ export function ExamRoom({ testId }: { testId: string }) {
         <ProfileBadge name={state.student?.name ?? ""} imageUrl={state.student?.imageUrl ?? null} />
         <div className="min-w-0">
           <p className="font-semibold truncate leading-tight">{state.testName}</p>
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <ShieldCheck className="h-3 w-3" /> {proctoringEnabled ? "Proctored exam" : lockdown ? "Full-screen exam" : "Exam in progress"}
-          </p>
         </div>
         <div className="ml-auto flex items-center gap-3">
           <ExamTimer deadlineAt={state.deadlineAt} serverNow={state.serverNow} onExpire={handleExpire} />

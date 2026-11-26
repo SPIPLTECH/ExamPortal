@@ -9,6 +9,9 @@ export const authConfig: NextAuthConfig = {
   providers: [],
   pages: { signIn: "/login" },
   session: { strategy: "jwt" },
+  // Required by Auth.js v5 in production mode (`next start`), otherwise every login fails with
+  // "There is a problem with the server configuration" (UntrustedHost).
+  trustHost: true,
   secret: process.env.AUTH_SECRET,
   callbacks: {
     async jwt({ token, user }) {

@@ -13,40 +13,21 @@ type SchoolGroup = { school: string; students: Row[]; passed: number };
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 function marksheetHtml(center: string, r: Row, school: string) {
-  const cell = (k: string, v: string) => `<div class="cell"><span>${k}</span><b>${v}</b></div>`;
-  const pct = Math.max(0, Math.min(100, r.percentage));
+  const row = (k: string, v: string) => `<tr><td class="k">${k}</td><td>${v}</td></tr>`;
   return `<div class="page"><div class="sheet">
-    <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
-    <div class="wm">${esc(center)}</div>
-    <header>
-      <div class="center">${esc(center)}</div>
-      <div class="rule"><i></i><em>&#9670;</em><i></i></div>
-      <h1>MARKSHEET</h1>
-      <div class="exam">${esc(r.exam)}</div>
-    </header>
-
-    <section class="who">
-      ${cell("Student Name", esc(r.name))}
-      ${cell("School", esc(school))}
-      ${r.class ? cell("Class", String(r.class)) : ""}
-      ${cell("Date", new Date(r.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }))}
-    </section>
-
-    <table class="marks">
-      <thead><tr><th>Exam</th><th>Total Marks</th><th>Marks Obtained</th><th>Percentage</th></tr></thead>
-      <tbody><tr><td>${esc(r.exam)}</td><td>${r.totalMarks}</td><td><b>${r.score}</b></td><td><b>${r.percentage.toFixed(2)}%</b></td></tr></tbody>
+    <h1>${esc(center)}</h1>
+    <h2>MARKSHEET</h2>
+    <table>
+      ${row("Center", esc(center))}
+      ${row("Student Name", esc(r.name))}
+      ${row("School", esc(school))}
+      ${r.class ? row("Class", String(r.class)) : ""}
+      ${row("Exam", esc(r.exam))}
+      ${row("Marks Obtained", `${r.score} / ${r.totalMarks}`)}
+      ${row("Percentage", `${r.percentage.toFixed(2)}%`)}
+      ${row("Result", `<b class="${r.passed ? "p" : "f"}">${r.passed ? "PASS" : "FAIL"}</b>`)}
     </table>
-
-    <div class="bar"><div style="width:${pct}%" class="${r.passed ? "ok" : "no"}"></div></div>
-
-    <div class="result ${r.passed ? "ok" : "no"}">
-      <span>RESULT</span><strong>${r.passed ? "PASS" : "FAIL"}</strong>
-    </div>
-
-    <footer>
-      <div><i></i>Date of issue<br><b>${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</b></div>
-      <div><i></i>Authorised Signatory<br><b>${esc(center)}</b></div>
-    </footer>
+    <div class="sign"><i></i>Sign &amp; Date<br>Center Authorised Person</div>
   </div></div>`;
 }
 
@@ -56,29 +37,16 @@ function printSheets(center: string, items: { r: Row; school: string }[]) {
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Marksheet</title><style>
     @page{size:A4;margin:0}
     *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    body{margin:0;background:#e5e7eb;font-family:Georgia,"Times New Roman",serif;color:#1e293b}
-    .page{width:210mm;height:297mm;margin:0 auto 8mm;background:#fff;padding:10mm;page-break-after:always;overflow:hidden}
-    .sheet{position:relative;height:100%;border:2.5px solid #1e3a8a;padding:14mm 14mm 12mm;display:flex;flex-direction:column;outline:1px solid #b8892b;outline-offset:-7px}
-    .corner{position:absolute;width:14mm;height:14mm;border:3px solid #b8892b}
-    .tl{top:3mm;left:3mm;border-right:0;border-bottom:0}.tr{top:3mm;right:3mm;border-left:0;border-bottom:0}
-    .bl{bottom:3mm;left:3mm;border-right:0;border-top:0}.br{bottom:3mm;right:3mm;border-left:0;border-top:0}
-    .wm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:46px;font-weight:bold;color:#1e3a8a;opacity:.045;transform:rotate(-28deg);pointer-events:none;padding:0 20mm}
-    header{text-align:center}
-    .center{font-size:26px;font-weight:bold;color:#1e3a8a;letter-spacing:.5px;text-transform:uppercase}
-    .rule{display:flex;align-items:center;gap:8px;margin:8px auto 10px;width:60%}.rule i{flex:1;height:1px;background:#b8892b}.rule em{color:#b8892b;font-style:normal;font-size:11px}
-    h1{margin:0;font-size:34px;letter-spacing:10px;color:#0f172a}
-    .exam{display:inline-block;margin-top:10px;padding:5px 18px;border-radius:999px;background:#1e3a8a;color:#fff;font:600 14px Arial,sans-serif;letter-spacing:.4px}
-    .who{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin:11mm 0 8mm}
-    .cell{border-bottom:1px solid #cbd5e1;padding:4px 2px}.cell span{display:block;font:11px Arial,sans-serif;color:#64748b;text-transform:uppercase;letter-spacing:1px}.cell b{font-size:17px}
-    .marks{width:100%;border-collapse:collapse;font-family:Arial,sans-serif}
-    .marks th{background:#1e3a8a;color:#fff;padding:10px;font-size:12.5px;letter-spacing:.6px;text-transform:uppercase;border:1px solid #1e3a8a}
-    .marks td{padding:16px 10px;text-align:center;font-size:17px;border:1px solid #cbd5e1}.marks td:first-child{text-align:left;font-size:15px}
-    .bar{height:10px;background:#e2e8f0;border-radius:99px;margin:10mm 0 8mm;overflow:hidden}.bar div{height:100%;border-radius:99px}
-    .ok{background:#059669}.no{background:#dc2626}
-    .result{align-self:center;display:flex;flex-direction:column;align-items:center;padding:10px 40px;border-radius:10px;color:#fff;font-family:Arial,sans-serif}
-    .result span{font-size:11px;letter-spacing:3px;opacity:.9}.result strong{font-size:34px;letter-spacing:6px}
-    footer{margin-top:auto;display:flex;justify-content:space-between;gap:20mm;font:12px Arial,sans-serif;color:#475569;text-align:center}
-    footer div{flex:1}footer i{display:block;border-top:1px solid #334155;margin-bottom:6px}footer b{color:#0f172a;font-size:13px}
+    body{margin:0;background:#e5e7eb;font-family:Arial,sans-serif;color:#111}
+    .page{width:210mm;height:297mm;margin:0 auto 8mm;background:#fff;padding:12mm;page-break-after:always;overflow:hidden}
+    .sheet{height:100%;border:2px solid #222;padding:14mm;display:flex;flex-direction:column}
+    h1{margin:0;text-align:center;font-size:24px;text-transform:uppercase}
+    h2{margin:8px 0 22px;text-align:center;font-size:16px;letter-spacing:5px;font-weight:600}
+    table{width:100%;border-collapse:collapse}
+    td{border:1px solid #888;padding:11px 14px;font-size:15px}.k{width:36%;background:#f3f4f6;font-weight:bold}
+    .p{color:#047857}.f{color:#b91c1c}
+    .sign{margin-top:auto;align-self:flex-end;width:62mm;text-align:center;font-size:12px;color:#333}
+    .sign i{display:block;border-top:1px solid #222;margin-bottom:6px}
     @media print{body{background:#fff}.page{margin:0}}
   </style></head><body>
     ${items.map((i) => marksheetHtml(center, i.r, i.school)).join("")}

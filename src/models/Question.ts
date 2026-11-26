@@ -41,6 +41,8 @@ export interface IQuestion {
   chapter?: string | null;
   /** Streams that may be served this question (11/12 syllabus). Empty = every stream. */
   streams?: Stream[];
+  /** For machine-translated questions: the source (English) question this was translated from. */
+  translatedFrom?: Types.ObjectId | null;
   /** Stable import key (idempotent re-seeding). */
   sourceKey?: string | null;
   /** True when copied from the shared library (no admin review needed). */
@@ -84,6 +86,7 @@ const QuestionSchema = new Schema<IQuestion>(
     subject: { type: String, trim: true, maxlength: 120, default: null },
     chapter: { type: String, trim: true, maxlength: 300, default: null },
     streams: { type: [String], enum: STREAMS, default: [] },
+    translatedFrom: { type: Schema.Types.ObjectId, ref: "Question", default: null, index: true },
     sourceKey: { type: String, default: null },
     fromLibrary: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true, index: true },

@@ -7,6 +7,11 @@ import { ExamResult } from "@/models/ExamResult";
 import { buildFrozenFromPool, buildFrozenFromPicks, shuffle, toClientQuestion } from "./exam-selection";
 import type { IBlueprintEntry } from "@/models/Test";
 
+/** Match the student's language. Untagged legacy questions (language = null) count as English,
+ *  so they can never leak into a Marathi paper. */
+const languageMatch = (lang: string | null) =>
+  !lang ? undefined : lang === "en" ? { $in: ["en", null] } : lang;
+
 /** Draw `entry.count` random questions for one blueprint slice. */
 async function drawEntry(
   test: ITest,
@@ -19,7 +24,8 @@ async function drawEntry(
       isActive: true,
       category: entry.category,
     };
-    if (lang) q.language = lang;
+    const lm = languageMatch(lang);
+    if (lm) q.language = lm;
     if (entry.subjects?.length) q.subject = { $in: entry.subjects };
     return q;
   };
@@ -31,13 +37,21 @@ async function drawEntry(
       { $sample: { size: entry.count } },
     ]);
   let picked = await sample(language);
+  // Only an EXPLICIT fallbackLanguage on the blueprint entry may serve another language.
   if (picked.length < entry.count && entry.fallbackLanguage && entry.fallbackLanguage !== language) {
     picked = await sample(entry.fallbackLanguage);
   }
   if (picked.length < entry.count) {
     throw new Error(
-      `Not enough questions for "${entry.label}": need ${entry.count}, have ${picked.length}.`
+      `Not enough questions for "${entry.label}" in ${language ?? "the selected language"}: need ${entry.count}, have ${picked.length}.`
     );
+  }
+  // Defensive guard: never hand a student a question in a language they did not choose.
+  const allowed = new Set<string | null>([language, entry.fallbackLanguage ?? null]);
+  if (language === "en") allowed.add(null);
+  const stray = picked.find((q) => !allowed.has(q.language ?? null));
+  if (stray) {
+    throw new Error(`Question language mismatch in "${entry.label}" (got ${stray.language}, expected ${language}).`);
   }
   return shuffle(picked);
 }
@@ -46,6 +60,7 @@ async function drawEntry(
  * Build the frozen question set for a brand-new attempt from the TEST'S OWN
  * question pool. Each student gets a different RANDOM subset of `totalQuestions`
  * (e.g. 25 of 100) with shuffled options. Throws if the pool is too small.
+ * The student's chosen language is enforced in BOTH blueprint and plain-pool mode.
  */
 export async function freezeQuestionSet(
   test: ITest,
@@ -70,14 +85,52 @@ export async function freezeQuestionSet(
     return buildFrozenFromPicks(picks, marking);
   }
 
-  const pool = await Question.find({ test: test._id, isActive: true }).lean();
+  // Plain pool mode: previously the language was ignored here, so every student got the
+  // whole (mostly English) pool whatever they chose. Filter by the chosen language.
+  const language = opts.language ?? (test.languages?.length === 1 ? test.languages[0]! : null);
+  const filter: Record<string, unknown> = { test: test._id, isActive: true };
+  const lm = test.languages?.length ? languageMatch(language) : undefined;
+  if (lm) filter.language = lm;
+  const pool = await Question.find(filter).lean();
   const need = test.totalQuestions;
   if (pool.length < need) {
     throw new Error(
-      `This test has only ${pool.length} question(s); ${need} are required per student. Add more questions.`
+      `This test has only ${pool.length} question(s)${language ? ` in the selected language (${language})` : ""}; ${need} are required per student. Add more questions.`
     );
   }
   return buildFrozenFromPool(pool, need, marking);
+}
+
+/**
+ * Languages this test can REALLY be taken in (enough questions in the DB for every blueprint
+ * slice / the whole pool). The exam room only offers these, so a student can never pick a
+ * language that has no questions.
+ */
+export async function availableLanguages(test: ITest, stream: string | null): Promise<string[]> {
+  await connectDB();
+  const offered = (test.languages ?? []) as string[];
+  const out: string[] = [];
+  for (const lang of offered) {
+    let ok = true;
+    if (test.blueprint && test.blueprint.length > 0) {
+      for (const e of test.blueprint) {
+        if (e.streams?.length && !(stream && (e.streams as string[]).includes(stream))) continue;
+        const count = (l: string) => {
+          const f: Record<string, unknown> = { test: test._id, isActive: true, category: e.category, language: languageMatch(l) };
+          if (e.subjects?.length) f.subject = { $in: e.subjects };
+          return Question.countDocuments(f);
+        };
+        let have = await count(lang);
+        if (have < e.count && e.fallbackLanguage && e.fallbackLanguage !== lang) have = await count(e.fallbackLanguage);
+        if (have < e.count) { ok = false; break; }
+      }
+    } else {
+      ok = (await Question.countDocuments({ test: test._id, isActive: true, language: languageMatch(lang) })) >= test.totalQuestions;
+    }
+    if (ok) out.push(lang);
+    else console.warn(`[language] test ${test._id}: "${lang}" has too few questions, not offered`);
+  }
+  return out;
 }
 
 /** Client-safe projection of an attempt (no correct answers). */

@@ -7,7 +7,7 @@ import { signIn } from "next-auth/react";
 import { toast } from "sonner";
 import {
   Loader2, UserRound, Phone, Mail, School, BookOpen, Layers,
-  ArrowRight, Upload, Headphones, Camera, Lock, CheckCircle2, Contact,
+  ArrowRight, ArrowLeft, Upload, Headphones, Camera, Lock, CheckCircle2, Contact,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,23 +132,47 @@ export default function StudentRegisterPage() {
     }
   }
 
+  const [step, setStep] = useState(1);
+
+  /** Returns an error message for the step, or null when it is fine. */
+  function checkStep(n: number): string | null {
+    const email = form.email.trim();
+    const mobile = cleanMobile(form.mobile);
+    if (n === 1) {
+      if (!form.name.trim()) return "Please enter your full name";
+      if (!form.schoolId) return "Please select your school";
+      if (!form.class) return "Please select your class";
+      if (showStream && !form.stream) return "Please select your stream";
+    }
+    if (n === 2) {
+      if (!email && !form.mobile.trim()) return "Enter your email address or mobile number";
+      if (email && !EMAIL_RE.test(email)) return "Enter a valid email address";
+      if (form.mobile.trim() && !/^[6-9]\d{9}$/.test(mobile)) return "Enter a valid 10-digit mobile number";
+      if (!form.mscit) return "Please tell us if you have completed MS-CIT";
+    }
+    if (n === 3) {
+      if (form.username.trim().length < 3) return "Choose a username (at least 3 characters)";
+      if (form.password.length < 8) return "Password must be at least 8 characters";
+      if (form.password !== form.confirmPassword) return "Passwords don't match";
+      if (!form.acceptTerms) return "Please accept the Terms and Conditions";
+    }
+    return null;
+  }
+
+  function goNext() {
+    const err = checkStep(step);
+    if (err) return toast.error(err);
+    setStep((x) => Math.min(3, x + 1));
+  }
+
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return;
-    const email = form.email.trim();
-    const mobile = cleanMobile(form.mobile);
-    if (!form.name.trim()) return toast.error("Please enter your name");
-    if (!form.schoolId) return toast.error("Please select your school");
-    if (!form.class) return toast.error("Please select your class");
-    if (showStream && !form.stream) return toast.error("Please select your stream");
-    if (!form.mscit) return toast.error("Please tell us if you have completed MS-CIT");
-    if (!email && !form.mobile.trim()) return toast.error("Enter your email address or mobile number");
-    if (email && !EMAIL_RE.test(email)) return toast.error("Enter a valid email address");
-    if (form.mobile.trim() && !/^[6-9]\d{9}$/.test(mobile)) return toast.error("Enter a valid 10-digit mobile number");
-    if (form.username.trim().length < 3) return toast.error("Choose a username (at least 3 characters)");
-    if (form.password.length < 8) return toast.error("Password must be at least 8 characters");
-    if (form.password !== form.confirmPassword) return toast.error("Passwords don't match");
-    if (!form.acceptTerms) return toast.error("Please accept the Terms and Conditions");
+    if (step < 3) return goNext();
+    for (const n of [1, 2, 3]) {
+      const err = checkStep(n);
+      if (err) { setStep(n); return toast.error(err); }
+    }
     void register();
   }
 
@@ -188,138 +212,169 @@ export default function StudentRegisterPage() {
     );
   }
 
-  // ─── Registration form (single page, no verification) ─────────────
+  // ─── Registration form: 3 pages, no verification ─────────────────
+  const STEPS = ["Student", "Contact", "Account"];
   return (
-    <div className="min-h-screen flex flex-col justify-center py-6 px-4">
-      <div className="mx-auto w-full max-w-xl">
-        <div className="flex items-center justify-center gap-2 font-semibold text-lg mb-4">
-          <BrandLogo className="h-9 w-9" /> Exam Portal
-        </div>
+    <div className="min-h-screen flex items-center justify-center py-4 px-4">
+      <div className="w-full max-w-2xl">
+        <div className="bg-background border rounded-3xl shadow-xl overflow-hidden">
+          <div className="google-bar h-1.5 w-full" />
+          <div className="px-6 sm:px-10 pt-6 pb-5">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <BrandLogo className="h-10 w-10" />
+              <h1 className="text-2xl font-bold tracking-tight">Exam Portal</h1>
+            </div>
 
-        <form onSubmit={onSubmit} noValidate>
-          <div className="mx-auto max-w-xl space-y-4">
-            <Card title="Student details" icon={UserRound}>
-              <div className="grid gap-4">
-                <Field label="Full name" required>
-                  <IconInput icon={UserRound} value={form.name} onChange={(v) => set("name", v)} autoComplete="name" />
-                </Field>
-                <Field label="School" required>
-                  <Select value={form.schoolId} onValueChange={(v) => set("schoolId", v)}>
-                    <SelectTrigger className="w-full"><School className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder={schoolsLoading ? "Loading schools…" : "Select your school"} /></SelectTrigger>
-                    <SelectContent>{schools.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                </Field>
-                <div className={showStream ? "grid grid-cols-2 gap-3" : ""}>
-                  <Field label="Class" required>
-                    <Select value={form.class} onValueChange={(v) => set("class", v)}>
-                      <SelectTrigger className="w-full"><BookOpen className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Select class" /></SelectTrigger>
-                      <SelectContent>{STUDENT_CLASSES.map((c) => <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>)}</SelectContent>
+            {/* Progress */}
+            <ol className="flex items-center justify-center gap-2 mb-5">
+              {STEPS.map((label, i) => {
+                const n = i + 1;
+                const done = step > n;
+                const active = step === n;
+                return (
+                  <li key={label} className="flex items-center gap-2">
+                    <span className={`h-8 w-8 rounded-full grid place-items-center text-sm font-semibold border-2 transition-colors ${
+                      done ? "bg-primary border-primary text-primary-foreground" : active ? "border-primary text-primary" : "border-muted-foreground/30 text-muted-foreground"
+                    }`}>{done ? <CheckCircle2 className="h-4 w-4" /> : n}</span>
+                    <span className={`hidden sm:inline text-sm ${active ? "font-semibold" : "text-muted-foreground"}`}>{label}</span>
+                    {n < 3 && <span className={`h-px w-8 sm:w-12 ${done ? "bg-primary" : "bg-border"}`} />}
+                  </li>
+                );
+              })}
+            </ol>
+
+            <form onSubmit={onSubmit} noValidate className="space-y-4">
+              {step === 1 && (
+                <div className="space-y-4">
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><UserRound className="h-5 w-5 text-primary" /> Student details</h2>
+                  <Field label="Full name" required>
+                    <IconInput icon={UserRound} value={form.name} onChange={(v) => set("name", v)} placeholder="Enter your full name" autoComplete="name" />
+                  </Field>
+                  <Field label="Select your school" required>
+                    <Select value={form.schoolId} onValueChange={(v) => set("schoolId", v)}>
+                      <SelectTrigger className="w-full h-10"><School className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder={schoolsLoading ? "Loading schools…" : "Select your school"} /></SelectTrigger>
+                      <SelectContent>{schools.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </Field>
-                  {showStream && (
-                    <Field label="Stream" required>
-                      <Select value={form.stream} onValueChange={(v) => set("stream", v)}>
-                        <SelectTrigger className="w-full"><Layers className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Stream" /></SelectTrigger>
-                        <SelectContent>{STREAMS.map((s) => <SelectItem key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</SelectItem>)}</SelectContent>
+                  <div className={showStream ? "grid sm:grid-cols-2 gap-4" : ""}>
+                    <Field label="Select class" required>
+                      <Select value={form.class} onValueChange={(v) => set("class", v)}>
+                        <SelectTrigger className="w-full h-10"><BookOpen className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Select class" /></SelectTrigger>
+                        <SelectContent>{STUDENT_CLASSES.map((c) => <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>)}</SelectContent>
                       </Select>
                     </Field>
-                  )}
-                </div>
-              </div>
-            </Card>
-
-            <Card title="Contact details" icon={Contact}>
-              <p className="text-sm text-muted-foreground mb-3">Enter your email address <b>or</b> your mobile number (either one is enough).</p>
-              <div className="grid gap-4">
-                <Field label="Email Address">
-                  <IconInput icon={Mail} type="email" value={form.email} onChange={(v) => set("email", v)} placeholder="Enter email address" autoComplete="email" />
-                </Field>
-                <Field label="Mobile Number">
-                  <IconInput icon={Phone} type="tel" value={form.mobile} onChange={(v) => set("mobile", v)} placeholder="Enter 10-digit mobile number" autoComplete="tel" />
-                </Field>
-              </div>
-            </Card>
-
-            {/* Asked for every class */}
-            <Card title="MS-CIT" icon={Headphones}>
-              <Field label="Have you completed MS-CIT?" required>
-                <YesNo value={form.mscit} onChange={(v) => set("mscit", v)} />
-              </Field>
-              {form.mscit === "yes" && (
-                <div className="mt-3 max-w-[14rem]">
-                  <Field label="MS-CIT percentage (%) — optional">
-                    <Input type="number" inputMode="decimal" min={0} max={100} step="0.01" value={form.mscitPct} onChange={(e) => set("mscitPct", e.target.value)} placeholder="e.g. 78.5" />
-                  </Field>
+                    {showStream && (
+                      <Field label="Select stream" required>
+                        <Select value={form.stream} onValueChange={(v) => set("stream", v)}>
+                          <SelectTrigger className="w-full h-10"><Layers className="h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Select stream" /></SelectTrigger>
+                          <SelectContent>{STREAMS.map((s) => <SelectItem key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </Field>
+                    )}
+                  </div>
                 </div>
               )}
-              {form.mscit === "no" && (
-                <div className="mt-3">
-                  <Field label="Interested in MS-CIT? Our advisor will call you.">
-                    <YesNo value={form.mscitInterested} onChange={(v) => set("mscitInterested", v)} />
+
+              {step === 2 && (
+                <div className="space-y-4">
+                  <h2 className="text-lg font-semibold flex items-center gap-2"><Contact className="h-5 w-5 text-primary" /> Contact details</h2>
+                  <p className="text-sm text-muted-foreground -mt-2">Enter your email address <b>or</b> mobile number — either one is enough.</p>
+                  <Field label="Email address">
+                    <IconInput icon={Mail} type="email" value={form.email} onChange={(v) => set("email", v)} placeholder="Enter email address" autoComplete="email" />
                   </Field>
+                  <Field label="Mobile number">
+                    <IconInput icon={Phone} type="tel" value={form.mobile} onChange={(v) => set("mobile", v)} placeholder="Enter 10-digit mobile number" autoComplete="tel" />
+                  </Field>
+
+                  <div className="rounded-2xl border p-3 space-y-3 bg-muted/30">
+                    <h3 className="font-semibold flex items-center gap-2"><Headphones className="h-4 w-4 text-primary" /> MS-CIT</h3>
+                    <Field label="Have you completed MS-CIT?" required>
+                      <YesNo value={form.mscit} onChange={(v) => set("mscit", v)} />
+                    </Field>
+                    {form.mscit === "yes" && (
+                      <div className="max-w-[14rem]">
+                        <Field label="MS-CIT percentage (%)">
+                          <Input type="number" inputMode="decimal" min={0} max={100} step="0.01" value={form.mscitPct} onChange={(e) => set("mscitPct", e.target.value)} placeholder="e.g. 78.5" className="h-10" />
+                        </Field>
+                      </div>
+                    )}
+                    {form.mscit === "no" && (
+                      <Field label="Interested in MS-CIT? Our advisor will call you.">
+                        <YesNo value={form.mscitInterested} onChange={(v) => set("mscitInterested", v)} />
+                      </Field>
+                    )}
+                  </div>
                 </div>
               )}
-            </Card>
 
-            <Card title="Your photo (optional)" icon={Camera}>
-              <div className="flex items-center gap-4">
-                <div className="h-16 w-16 rounded-full bg-muted overflow-hidden flex items-center justify-center border shrink-0">
-                  {photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={photoUrl} alt="Your photo" className="h-full w-full object-cover" />
-                  ) : (
-                    <Upload className="h-5 w-5 text-muted-foreground" />
-                  )}
+              {step === 3 && (
+                <div className="space-y-4">
+                  <div>
+                    <h2 className="text-lg font-semibold flex items-center gap-2 mb-2"><Camera className="h-5 w-5 text-primary" /> Profile photo</h2>
+                    <div className="flex items-center gap-4">
+                      <div className="h-14 w-14 rounded-full bg-muted overflow-hidden flex items-center justify-center border shrink-0">
+                        {photoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={photoUrl} alt="Your photo" className="h-full w-full object-cover" />
+                        ) : (
+                          <Upload className="h-6 w-6 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <Input id="photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} className="h-10" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h2 className="text-lg font-semibold flex items-center gap-2"><Lock className="h-5 w-5 text-primary" /> Create your login</h2>
+                    <Field label="Username" required>
+                      <IconInput icon={UserRound} value={form.username} onChange={(v) => set("username", v.toLowerCase())} placeholder="e.g. riya.patil" autoComplete="username" />
+                    </Field>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <Field label="Password" required>
+                        <IconInput icon={Lock} type="password" value={form.password} onChange={(v) => set("password", v)} autoComplete="new-password" />
+                      </Field>
+                      <Field label="Confirm password" required>
+                        <IconInput icon={Lock} type="password" value={form.confirmPassword} onChange={(v) => set("confirmPassword", v)} autoComplete="new-password" />
+                      </Field>
+                    </div>
+                    <p className="text-xs text-muted-foreground">8+ characters with an uppercase letter, a lowercase letter, a number and a special character.</p>
+                  </div>
+
+                  <label className="flex items-start gap-2 text-sm">
+                    <Checkbox checked={form.acceptTerms} onCheckedChange={(v) => set("acceptTerms", Boolean(v))} className="mt-0.5" />
+                    <span>I accept the <TermsDialog />.</span>
+                  </label>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <Label htmlFor="photo">Upload a clear photo</Label>
-                  <Input id="photo" type="file" accept="image/jpeg,image/png,image/webp" className="mt-2" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
-                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="flex items-center gap-3 pt-2">
+                {step > 1 && (
+                  <Button type="button" variant="outline" size="lg" className="flex-1 h-10" onClick={() => setStep((x) => x - 1)} disabled={loading}>
+                    <ArrowLeft className="h-4 w-4" /> Previous
+                  </Button>
+                )}
+                {step < 3 ? (
+                  <Button type="submit" size="lg" className="flex-1 h-10">
+                    Next <ArrowRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button type="submit" size="lg" className="flex-1 h-10" disabled={loading}>
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Register
+                  </Button>
+                )}
               </div>
-            </Card>
+            </form>
 
-            <Card title="Create your login" icon={Lock}>
-              <div className="grid gap-3">
-                <Field label="Username" required>
-                  <IconInput icon={UserRound} value={form.username} onChange={(v) => set("username", v.toLowerCase())} placeholder="e.g. riya.patil" autoComplete="username" />
-                </Field>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Password" required>
-                    <IconInput icon={Lock} type="password" value={form.password} onChange={(v) => set("password", v)} autoComplete="new-password" />
-                  </Field>
-                  <Field label="Confirm" required>
-                    <IconInput icon={Lock} type="password" value={form.confirmPassword} onChange={(v) => set("confirmPassword", v)} autoComplete="new-password" />
-                  </Field>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">8+ characters with an uppercase letter, a lowercase letter, a number and a special character.</p>
-            </Card>
-
-            <label className="flex items-start gap-2 text-sm px-1">
-              <Checkbox checked={form.acceptTerms} onCheckedChange={(v) => set("acceptTerms", Boolean(v))} className="mt-0.5" />
-              <span>I accept the <TermsDialog />.</span>
-            </label>
-
-            <Button type="submit" className="w-full" size="lg" disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-              Register
-            </Button>
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-sm text-muted-foreground mt-4">
               Already registered? <a href="/login" className="text-primary font-medium hover:underline">Log in</a>
             </p>
           </div>
-        </form>
+        </div>
       </div>
     </div>
-  );
-}
-
-function Card({ title, icon: Icon, children }: { title: string; icon: typeof UserRound; children: React.ReactNode }) {
-  return (
-    <section className="bg-card border rounded-2xl shadow-sm p-4 border-t-4 border-t-[#5b2a86]">
-      <h2 className="font-semibold flex items-center gap-2 mb-3"><Icon className="h-4 w-4 text-primary" /> {title}</h2>
-      {children}
-    </section>
   );
 }
 
@@ -327,7 +382,7 @@ function YesNo({ value, onChange }: { value: string; onChange: (v: "yes" | "no")
   return (
     <div className="flex gap-2">
       {(["yes", "no"] as const).map((v) => (
-        <button type="button" key={v} onClick={() => onChange(v)} className={`flex-1 rounded-lg border-2 py-2 text-sm font-medium capitalize transition-colors ${value === v ? "border-primary bg-primary/10 text-primary" : "hover:border-primary/40"}`}>
+        <button type="button" key={v} onClick={() => onChange(v)} className={`flex-1 rounded-lg border-2 py-2.5 text-sm font-medium capitalize transition-colors ${value === v ? "border-primary bg-primary/10 text-primary" : "hover:border-primary/40"}`}>
           {v}
         </button>
       ))}
@@ -349,8 +404,8 @@ function IconInput({ icon: Icon, value, onChange, placeholder, type = "text", au
 }) {
   return (
     <div className="relative">
-      <Icon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-      <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} autoComplete={autoComplete} className="pl-9" />
+      <Icon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+      <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} autoComplete={autoComplete} className="pl-9 h-10" />
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { Test, type ITest } from "@/models/Test";
 import { TestEnrollment } from "@/models/TestEnrollment";
 import { ExamAttempt } from "@/models/ExamAttempt";
 import { requireStudentContext, examLive, eligibleTestFilter } from "@/lib/student";
-import { freezeQuestionSet, projectAttempt, finalizeAttempt, isExpired } from "@/lib/exam-engine";
+import { availableLanguages, freezeQuestionSet, projectAttempt, finalizeAttempt, isExpired } from "@/lib/exam-engine";
 import { ok, fail, handleRoute } from "@/lib/api";
 import { audit, clientIp } from "@/lib/audit";
 import { User } from "@/models/User";
@@ -66,11 +66,15 @@ export const POST = handleRoute(async (req: Request, ctxArg: unknown) => {
   }
 
   // Language: multi-language tests make the student choose BEFORE the paper is built.
-  const offered = test.languages ?? [];
+  const offered = (await availableLanguages(test, ctx.profile.stream ?? null)) as typeof test.languages;
+  if ((test.languages ?? []).length > 0 && offered.length === 0) {
+    return fail("No questions are available for this exam yet. Please contact your center.", 422);
+  }
   let language: string | null = null;
   if (offered.length > 0) {
     const body = (await req.json().catch(() => ({}))) as { language?: string };
-    language = offered.length === 1 ? offered[0]! : body.language ?? null;
+    const requested = typeof body.language === "string" ? body.language.trim().toLowerCase() : null;
+    language = offered.length === 1 ? offered[0]! : requested;
     if (!language || !(offered as string[]).includes(language)) {
       return fail("Please choose a language for the exam", 400);
     }

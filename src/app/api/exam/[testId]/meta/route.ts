@@ -1,6 +1,7 @@
 import { connectDB } from "@/lib/db";
 import { Test, type ITest } from "@/models/Test";
 import { ExamAttempt } from "@/models/ExamAttempt";
+import { availableLanguages } from "@/lib/exam-engine";
 import { requireStudentContext } from "@/lib/student";
 import { ok, fail, handleRoute } from "@/lib/api";
 
@@ -29,6 +30,7 @@ export const GET = handleRoute(async (_req: Request, ctxArg: unknown) => {
           .reduce((n, e) => n + e.count, 0)
       : test.totalQuestions;
   const marksPerQuestion = test.marksPerQuestion ?? 1;
+  const languages = existing ? (test.languages ?? []) : await availableLanguages(test, stream);
 
   return ok({
     name: test.name,
@@ -36,7 +38,7 @@ export const GET = handleRoute(async (_req: Request, ctxArg: unknown) => {
     instructions: test.instructions ?? null,
     rules: test.rules ?? null,
     specialConditions: test.specialConditions ?? null,
-    languages: test.languages ?? [],
+    languages,
     duration: test.duration,
     totalQuestions,
     marksPerQuestion,

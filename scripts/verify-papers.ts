@@ -17,6 +17,16 @@ import { freezeQuestionSet } from "../src/lib/exam-engine";
     d.test === q.test && d.category === q.category && (!q.language || d.language === q.language) &&
     (!q.subject || q.subject.$in.includes(d.subject))) });
 
+  // The engine draws blueprint slices with $sample; emulate it on the same in-memory pool.
+  (Question as any).aggregate = async (stages: any[]) => {
+    const m = stages[0].$match, size = stages[1].$sample.size;
+    const ok = (d: any) => d.test === m.test && d.category === m.category &&
+      (!m.language || (m.language.$in ? m.language.$in.includes(d.language ?? null) : m.language === d.language)) &&
+      (!m.subject || m.subject.$in.includes(d.subject));
+    const hit = all.filter(ok);
+    return hit.sort(() => Math.random() - 0.5).slice(0, size);
+  };
+
   let bad = 0, papers = 0;
   for (const cls of [5, 6, 7, 8, 9, 10, 11, 12]) {
     const { languages, blueprint } = blueprintFor(cls);

@@ -10,9 +10,14 @@
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
     "seed:exams": "tsx scripts/seed-exams.ts",
+    "seed:marathi": "tsx scripts/seed-marathi.ts",
+    "seed:marathi:dry": "tsx scripts/seed-marathi.ts --dry-run",
     "seed:exams:dry": "tsx scripts/seed-exams.ts --dry-run",
     "seed:datatech": "tsx scripts/seed-datatech.ts",
-    "start:prod": "next build --webpack && next start"
+    "start:prod": "next build --webpack && next start",
+    "translate:excel:dry": "tsx scripts/translate-excel.ts --dry-run",
+    "translate:excel": "tsx scripts/translate-excel.ts",
+    "check:languages": "tsx scripts/check-languages.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "3.9.1",
